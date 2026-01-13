@@ -570,7 +570,7 @@ class Board(UserList):
                 newcell.bgcolor = self._cell_color
                 self._cells[r][c] = newcell
                 if self[r][c] != None:                       # Cell has a value
-                    self._notify_change(r, c,(0,0,0), self[r][c])    # show it
+                    self._notify_change(r, c, ((0,0,0), self[r][c]))    # show it
 
         for r in range(self._nrows):
             x, y = self._rc2xy(r, self._ncols)
