@@ -136,5 +136,6 @@ class ProjectileClass(UnitClass):
 
 # Will be used as the projectile for the missile launcher unit
 class MissileClass(ProjectileClass):
-    def __init__(self, ID, Owner, Position, Life=1):
-        ProjectileClass.__init__(self, ID, Owner, Positon=Position, Life=Life)
+    def __init__(self, ID, Owner, Health, Position, RemainingLifetime=1):
+        ProjectileClass.__init__(self, ID, Owner, Health, RemainingLifetime)
+        self.Position = Position
