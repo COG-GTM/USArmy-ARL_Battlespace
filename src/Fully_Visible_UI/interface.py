@@ -220,7 +220,7 @@ def newgame():
                                     board[9-newPosition[1]][newPosition[0]] = (newOrientation,Ledger["Agents"][AgentID]["Units"][data[AgentID][Unit]["UnitID"]]["ImagePath"])
                                     Ledger["Agents"][AgentID]["Units"][data[AgentID][Unit]["UnitID"]]["Position"] = newPosition
                             setup = False
-        except:
+        except (socket.error, OSError, select.error, pickle.UnpicklingError) as e:
             continue
 
     #time.sleep(1.0)

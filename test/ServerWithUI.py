@@ -182,7 +182,7 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
                     conn.send(pickle.dumps(x))
                     init = False
                     break
-        except:
+        except (socket.error, OSError, select.error) as e:
             continue
 
     init = True
@@ -240,7 +240,7 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
             else:
                 continue  # only executed if the inner loop did NOT break
             break
-        except:
+        except (socket.error, OSError, select.error, pickle.UnpicklingError) as e:
             if ReadyPlayers == NumberOfPlayers:
                 break
 
@@ -482,7 +482,7 @@ elif GameType == '--test':
                     start_new_thread(initPositions, (conn, PlayerID, TeamID,QTable["FlagPositions"]))
                     if idCount == NumberOfPlayers:
                         init = False
-        except:
+        except (socket.error, OSError, select.error) as e:
             if idCount == NumberOfPlayers:
                 init = False
             else:
