@@ -169,7 +169,7 @@ def timer_fn(verbose = False):
                     try:
                         data = pickle.loads(data)
                         pickleLoadSuccessful = True
-                    except:
+                    except (pickle.UnpicklingError, ValueError, TypeError, EOFError) as e:
                         print('HumanInterface.py line 156:  Failed to unpickle data at time ',int(round(time.time() * 1000)))
                         print('Ignoring this bad packet.')
                     if pickleLoadSuccessful == True:                   
