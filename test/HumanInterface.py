@@ -1,18 +1,18 @@
 import sys, os
 sys.path.append(os.path.realpath('..'))
 import errno
+import json
 
 import src
 from src.UI_Files.board import Board
+from src.security_utils import SecureSerializer, InputValidator, InputSanitizer
 from itertools import cycle
 import itertools
 import random
 import os
 import socket
-import pickle
 from src.StateTypes.TeamState import TeamStateClass
 from _thread import *
-import dill as pickle
 import select
 from copy import deepcopy
 import tkinter as tk
@@ -69,8 +69,13 @@ def mouse_fn(btn, row, col, verbose = False):    # mouse calback function
     global PlayerID
     global client
     temp = {}
-    temp[PlayerID] = (col,board._nrows-row-1,0)
-    msg = pickle.dumps(temp)
+    position = [col, board._nrows-row-1, 0]
+    # Validate position before sending (STIG V-220631)
+    if not InputValidator.validate_position(position):
+        print(f"Invalid position: {position}")
+        return
+    temp[PlayerID] = position
+    msg = SecureSerializer.serialize(temp)
     if verbose: print('HumanInterface.py, mouse_fn line 73  sending msg length ',len(msg))
     client.send(msg)
 
@@ -165,15 +170,15 @@ def timer_fn(verbose = False):
                     return
                 if data:
                     if verbose: print('data is type ',type(data), 'of length ',len(data))
-                    pickleLoadSuccessful = False
+                    deserializeSuccessful = False
                     try:
-                        data = pickle.loads(data)
-                        pickleLoadSuccessful = True
-                    except:
-                        print('HumanInterface.py line 156:  Failed to unpickle data at time ',int(round(time.time() * 1000)))
-                        print('Ignoring this bad packet.')
-                    if pickleLoadSuccessful == True:                   
-                        print('HumanInterface.py line 158:  Successful unpickle of data at time ',int(round(time.time() * 1000)))
+                        data = SecureSerializer.deserialize(data)
+                        deserializeSuccessful = True
+                    except Exception as e:
+                        print('HumanInterface.py line 156:  Failed to deserialize data at time ',int(round(time.time() * 1000)))
+                        print(f'Error: {e}. Ignoring this bad packet.')
+                    if deserializeSuccessful == True:                   
+                        print('HumanInterface.py line 158:  Successful deserialize of data at time ',int(round(time.time() * 1000)))
                         contents = data["contents"]
                         if data["contents"] == "RemoteAgent":
                             #print(data)
@@ -233,7 +238,7 @@ def timer_fn(verbose = False):
                                 #Action = (UnitID,[getUnitAction(UnitTypes[UnitID],PossibleActions[UnitID],'',0)])
                                 Action = ( UnitID, [ getUnitAction(UnitTypes[UnitID], PossibleActions[UnitID],'', ActionNames[UnitID]) ] )
                                 Actions.append(Action)
-                            client.send(pickle.dumps(Actions))
+                            client.send(SecureSerializer.serialize(Actions))
                             contents = ""
                             remoteActions = []
                             remoteIDX = 0
@@ -282,6 +287,12 @@ def newgame():
         print('assigning server to same as client, ',external_ip)
     else:
         print(textIn)
+    # Validate IP address input (STIG V-220631)
+    sanitized_ip = InputSanitizer.sanitize_ip_address(textIn)
+    if sanitized_ip is None:
+        print(f"Invalid IP address format: {textIn}")
+        return
+    textIn = sanitized_ip
     ADDR = (textIn, PORT)    
     client.connect(ADDR)
     print('client: ',client,'  ADDR: ',ADDR)
@@ -293,7 +304,7 @@ def newgame():
                 if sock is client:
                     data = client.recv(4096)
                     if data:
-                        data = pickle.loads(data)
+                        data = SecureSerializer.deserialize(data)
                         #print(data)
                         if data["contents"] == "PlayerID":
                             PlayerID = data["data"]

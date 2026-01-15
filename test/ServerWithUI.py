@@ -9,9 +9,10 @@ sys.path.append(os.path.realpath('..'))
 
 import socket
 from _thread import *
-import dill as pickle
+import json
 
 import src
+from src.security_utils import SecureSerializer, InputValidator, InputSanitizer
 from src.StateTypes.TeamState import TeamStateClass
 from src.Games.TeamCaptureFlagGame import TeamCaptureFlagClass
 from src.AgentTypes.TeamAgents import TeamHumanAgentClass, TeamStaticRandomAgentClass, TeamUniformRandomAgentClass
@@ -165,8 +166,9 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
     counter = 0
     AgentDict[PlayerID] = {}
     x = {"contents":"PlayerID","data":PlayerID}
-    print('now in ServerWithUI, initPositions, line 167  sending contents = data : PlayerID = PlayerID   length ',len(pickle.dumps(x)))
-    conn.send(pickle.dumps(x))
+    msg_bytes = SecureSerializer.serialize(x)
+    print('now in ServerWithUI, initPositions, line 167  sending contents = data : PlayerID = PlayerID   length ',len(msg_bytes))
+    conn.send(msg_bytes)
     init = True
     while init:
         try:
@@ -178,8 +180,9 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
                     print('size of data received is: ', len(data))
                     print('[Received] '+data)
                     x = {"contents":"TeamID","data":TeamID}
-                    print('now in ServerWithUI, initPositions, line 182  sending TeamID   length ',len(pickle.dumps(x)))   # length is about 49 bytes
-                    conn.send(pickle.dumps(x))
+                    msg_bytes = SecureSerializer.serialize(x)
+                    print('now in ServerWithUI, initPositions, line 182  sending TeamID   length ',len(msg_bytes))   # length is about 49 bytes
+                    conn.send(msg_bytes)
                     init = False
                     break
         except:
@@ -196,10 +199,17 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
                     print('size of data received is: ', len(data))   # length of data received is about 18 bytes
                     # Check if a message was received from the Client
                     if data:
-                        data = pickle.loads(data)
+                        data = SecureSerializer.deserialize(data)
                         print(data)
+                        # Validate the received message (STIG V-220631)
+                        is_valid, error_msg = InputValidator.validate_game_message(data) if isinstance(data, dict) and "contents" in data else (True, "")
                         UnitID = list(data.keys())[0]
                         Position = data[UnitID]
+                        # Validate position data (STIG V-220631)
+                        if isinstance(Position, (list, tuple)) and len(Position) >= 2:
+                            if not InputValidator.validate_position(Position, State0.BoardSize):
+                                print(f"Invalid position received: {Position}")
+                                continue
                         UnitID = UnitID*5 + mTurn
                         curr_mod = modules[mTurn]
                         if mTurn == 4:
@@ -213,8 +223,8 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
                             Ori = (0,1,0)
                         else:
                             Ori = (0,-1,0)
-                        d = {"id":PlayerID, "UnitID": UnitID, "currMod": curr_mod, "nextMod": next_mod, "oldPos": oldPos, "newPos":newPos, "newOri":Ori,"contents":"RemoteAgent" }
-                        msg = pickle.dumps(d)
+                        d = {"id":PlayerID, "UnitID": UnitID, "currMod": curr_mod, "nextMod": next_mod, "oldPos": list(oldPos) if oldPos else oldPos, "newPos":list(newPos) if newPos else newPos, "newOri":list(Ori),"contents":"RemoteAgent" }
+                        msg = SecureSerializer.serialize(d)
                         broadcast(msg)
                         aPositions[PlayerID][curr_mod] = newPos
                         if counter == 0:
@@ -369,8 +379,8 @@ def sendResult(conn, Result):
     Result: [str]
         Game result
     """
-    print('now in ServerWithUI, sendResult, line 371  sending pickled Result')
-    conn.send(pickle.dumps(Result))
+    print('now in ServerWithUI, sendResult, line 371  sending serialized Result')
+    conn.send(SecureSerializer.serialize(Result))
     print("Game Over.  Press Ctrl-C to exit.")
     conn.close()
 
