@@ -2,10 +2,10 @@
 from src.AgentModule import AgentClass
 from src.AgentTypes.HumanAgent import HumanAgentClass
 from src.AgentTypes.TeamAgents import TeamHumanAgentClass
+from src.security_utils import SecureSerializer, InputValidator
 import itertools
 import socket
 from _thread import *
-import dill as pickle
 import errno
 import select
 from reliableSockets import sendReliablyBinary, recvReliablyBinary2, emptySocket
@@ -73,9 +73,10 @@ class RemoteTeamAgentClass(AgentClass):
         """
         self.Went = 0
         PossibleActions["contents"] = "requestActions"
-        print('now in RemoteAgent.py, requestActions, line 77  sending PossibleActions   length ',len(pickle.dumps(PossibleActions)))
-        # conn.send(pickle.dumps(PossibleActions))    # data size is about 18504 bytes?
-        sendReliablyBinary(pickle.dumps(PossibleActions),conn)
+        serialized_actions = SecureSerializer.serialize(PossibleActions)
+        print('now in RemoteAgent.py, requestActions, line 77  sending PossibleActions   length ',len(serialized_actions))
+        # conn.send(serialized_actions)    # data size is about 18504 bytes?
+        sendReliablyBinary(serialized_actions, conn)
 
         while True:
             try:
@@ -83,7 +84,7 @@ class RemoteTeamAgentClass(AgentClass):
                 data = conn.recv(1024)  # this line does not complete until all actions are selected for this player and the data is sent/received
                 print('size of data received is: ', len(data))   # data size is about 127 bytes
                 if data:
-                    AgentAction = pickle.loads(data)
+                    AgentAction = SecureSerializer.deserialize(data)
                     print(AgentAction)
                     break
             except socket.error as error:
@@ -117,7 +118,7 @@ class RemoteTeamAgentClass(AgentClass):
             d[Unit.ID] = {"AgentID":AgentID, "UnitID": Unit.ID, "newPos":newPosition, "newOri":newOrientation}
         d["contents"] = "updateClient"
         print('now in RemoteAgent.py, updateClient, line 118  sending request to updateClient')
-        self.Connection.send(pickle.dumps(d))
+        self.Connection.send(SecureSerializer.serialize(d))
         while True:
             try:
                 print('now in RemoteAgent.py, updateClient, line 122  receiving AgentAction')
