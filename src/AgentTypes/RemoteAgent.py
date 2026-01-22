@@ -4,7 +4,7 @@ from src.AgentTypes.HumanAgent import HumanAgentClass
 from src.AgentTypes.TeamAgents import TeamHumanAgentClass
 import itertools
 import socket
-from _thread import *
+from _thread import start_new_thread
 import dill as pickle
 import errno
 import select

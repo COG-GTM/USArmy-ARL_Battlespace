@@ -12,7 +12,7 @@ import os
 import socket
 import pickle
 from TeamState import TeamStateClass
-from _thread import *
+from _thread import start_new_thread
 import dill as pickle
 import select
 from copy import deepcopy
@@ -220,7 +220,7 @@ def newgame():
                                     board[9-newPosition[1]][newPosition[0]] = (newOrientation,Ledger["Agents"][AgentID]["Units"][data[AgentID][Unit]["UnitID"]]["ImagePath"])
                                     Ledger["Agents"][AgentID]["Units"][data[AgentID][Unit]["UnitID"]]["Position"] = newPosition
                             setup = False
-        except:
+        except (OSError, socket.error, select.error, pickle.UnpicklingError, KeyError) as e:
             continue
 
     #time.sleep(1.0)

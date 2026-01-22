@@ -485,7 +485,7 @@ def emptySocket(conn, verbose = False):
             for sock in readable:
                 if sock is conn:
                     junk = conn.recv(1024)
-        except:
+        except (OSError, socket.error, select.error) as e:
             break
-    if verbose: print('socket emptied')                
+    if verbose: print('socket emptied')                                                
                     
