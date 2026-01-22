@@ -11,7 +11,7 @@ import os
 import socket
 import pickle
 from src.StateTypes.TeamState import TeamStateClass
-from _thread import *
+from _thread import start_new_thread
 import dill as pickle
 import select
 from copy import deepcopy
@@ -169,9 +169,9 @@ def timer_fn(verbose = False):
                     try:
                         data = pickle.loads(data)
                         pickleLoadSuccessful = True
-                    except:
+                    except (pickle.UnpicklingError, EOFError, AttributeError, ImportError, IndexError, TypeError, ValueError) as e:
                         print('HumanInterface.py line 156:  Failed to unpickle data at time ',int(round(time.time() * 1000)))
-                        print('Ignoring this bad packet.')
+                        print('Ignoring this bad packet. Error:', e)
                     if pickleLoadSuccessful == True:                   
                         print('HumanInterface.py line 158:  Successful unpickle of data at time ',int(round(time.time() * 1000)))
                         contents = data["contents"]
