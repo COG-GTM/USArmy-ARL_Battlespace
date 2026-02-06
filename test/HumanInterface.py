@@ -80,8 +80,8 @@ def sendMessage(msg, conn, verbose = False):
     conn.send(message)
     if verbose: print('[Sent] '+msg)
 
-def timer_fn(verbose = False):
-    verbose = True
+def timer_fn(verbose=False):
+    # Performance: verbose defaults to False for production use
     global Ledger
     global PlayerID
     global board
