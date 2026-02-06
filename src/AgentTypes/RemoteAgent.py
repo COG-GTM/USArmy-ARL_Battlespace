@@ -5,6 +5,7 @@ from src.AgentTypes.TeamAgents import TeamHumanAgentClass
 import itertools
 import socket
 from _thread import *
+import threading
 import dill as pickle
 import errno
 import select
@@ -26,6 +27,13 @@ class RemoteAgentClass(AgentClass):
 
 
 class RemoteTeamAgentClass(AgentClass):
+    """
+    Remote agent class for networked gameplay.
+    
+    Performance optimizations:
+    - Uses threading.Event instead of busy-wait loops for synchronization
+    - Reduces CPU usage during action request/response cycles
+    """
     def __init__(self, ID, TeamID, ClassType, Connection):
         self.AgentType = ClassType(ID, TeamID)
         self.Connection = Connection
@@ -34,6 +42,8 @@ class RemoteTeamAgentClass(AgentClass):
         self.Actions = {}
         self.Went = 0
         self.Updated = 0
+        self._action_event = threading.Event()
+        self._update_event = threading.Event()
 
     def getActions(self, ObservedState, State):
         #msg = self.AgentType.printObservedState(ObservedState)
@@ -62,6 +72,9 @@ class RemoteTeamAgentClass(AgentClass):
     def requestActions(self, conn, PossibleActions):
         """
         Get the Actions for each unit from the Client `conn`
+        
+        Performance optimizations:
+        - Uses threading.Event for synchronization instead of busy-wait
 
         Parameters
         ----------
@@ -71,40 +84,42 @@ class RemoteTeamAgentClass(AgentClass):
             A Dictionary with key `0` containing the available actions for each unit
             and key `1` containing a string of the Clients `ObservedState`
         """
-        self.Went = 0
+        self._action_event.clear()
         PossibleActions["contents"] = "requestActions"
-        print('now in RemoteAgent.py, requestActions, line 77  sending PossibleActions   length ',len(pickle.dumps(PossibleActions)))
-        # conn.send(pickle.dumps(PossibleActions))    # data size is about 18504 bytes?
-        sendReliablyBinary(pickle.dumps(PossibleActions),conn)
+        print('RemoteAgent.py requestActions: sending PossibleActions, length', len(pickle.dumps(PossibleActions)))
+        sendReliablyBinary(pickle.dumps(PossibleActions), conn)
 
         while True:
             try:
-                print('now in RemoteAgent.py, requestActions, line 81  receiving AgentAction')
-                data = conn.recv(1024)  # this line does not complete until all actions are selected for this player and the data is sent/received
-                print('size of data received is: ', len(data))   # data size is about 127 bytes
+                print('RemoteAgent.py requestActions: receiving AgentAction')
+                data = conn.recv(1024)
+                print('RemoteAgent.py requestActions: received', len(data), 'bytes')
                 if data:
                     AgentAction = pickle.loads(data)
                     print(AgentAction)
                     break
             except socket.error as error:
                 if error.errno == errno.ECONNREFUSED:
-                    print(os.strerror(error.errno))
-                    board.close()
-                    client.close()
+                    print('Connection refused error')
                 else:
                     print(error)
+                break
 
-        self.Went = 1
         self.Actions = AgentAction
+        self._action_event.set()
 
     def chooseActions(self, ObservedState, State):
-        self.Went = 0
+        """
+        Choose actions for all owned units.
+        
+        Performance optimizations:
+        - Uses threading.Event.wait() instead of busy-wait loop
+        - Reduces CPU usage from 100% to near 0% while waiting
+        """
+        self._action_event.clear()
         PossibleActions = self.getActions(ObservedState, State)
-        #print(PossibleActions[0])
-        #print(self.Connection)
         start_new_thread(self.requestActions, (self.Connection, PossibleActions))
-        while self.Went == 0:
-            pass
+        self._action_event.wait()
         return self.Actions
 
     def updateClient(self,NewUnits):
