@@ -30,18 +30,24 @@ from RemoteAgent import RemoteTeamAgentClass
 #from TeamCaptureFlagGameHealth import TeamCaptureFlagHealthClass
 from TeamAnnihilationGameHealth import TeamAnnihilationGameClass
 import enum
+import logging
+import os
+import re
 import sys
 import json
 import select
 
+_logger = logging.getLogger(__name__)
+
+VALID_GAME_TYPES = ('--train', '--test')
 if len(sys.argv) >= 2:
     GameType = sys.argv[1]
-    if GameType not in ['--train','--test']:
+    if GameType not in VALID_GAME_TYPES:
         print("Specify Game Type: --train or --test")
-        sys.exit()
+        sys.exit(1)
 else:
     print("Specify Game Type: --train or --test")
-    sys.exit()
+    sys.exit(1)
 
 modules = ['Soldier','Truck','Tank','Airplane','Flag']
 UnitClasses = [SoldierClass,TruckClass, TankClass, AirplaneClass, FlagClass]
@@ -127,7 +133,10 @@ def placeRandomUnits(PlayerID, NumberOfUnits, UnitsCord, FlagCord):
 
 def broadcast(msg):  # prefix is for name identification.
     for id in Connections:
-        Connections[id].send(msg)
+        try:
+            Connections[id].send(msg)
+        except Exception as e:
+            _logger.error('broadcast error to connection %s: %s', id, e)
 
 def sendMessage(msg, conn):
     message = msg.encode('utf-8')
@@ -388,12 +397,13 @@ elif GameType == '--test':
     RandomAgentIDs = []
     RemoteAgentIDs = [2,3]
     Server = socket.gethostbyname(socket.gethostname())
-    Port = 5050
+    Port = int(os.environ.get('BATTLESPACE_PORT', 5050))
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         s.bind((Server, Port))
     except socket.error as e:
-        str(e)
+        _logger.error('Failed to bind socket: %s', e)
+        sys.exit(1)
 
     s.setblocking(0)
     s.listen(2)
