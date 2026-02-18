@@ -7,6 +7,8 @@ Created on Tue Nov 17 14:13:21 2020
 
 from src.AgentModule import AgentClass
 import itertools
+import logging
+import re
 
 def nth(iterable, n, default=None):
     "Returns the nth item or a default value"
@@ -43,8 +45,12 @@ def getUnitAction(UnitID, ActionOptions, msg):
     BadInput = True
     while BadInput:
         UserInput = input(":")
-        if int(UserInput) in range(len(ActionOptions[0])):
-            ActionCount = int(UserInput)
+        if not re.match(r'^\d+$', UserInput.strip()):
+            print("Invalid input, please enter a number.")
+            continue
+        selection = int(UserInput.strip())
+        if selection in range(len(ActionOptions[0])):
+            ActionCount = selection
             Action = ActionOptions[0][ActionCount]
             break
         else:

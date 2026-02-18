@@ -3,12 +3,16 @@ from src.AgentModule import AgentClass
 from src.AgentTypes.HumanAgent import HumanAgentClass
 from src.AgentTypes.TeamAgents import TeamHumanAgentClass
 import itertools
+import json
+import logging
 import socket
 from _thread import *
 import dill as pickle
 import errno
 import select
 from reliableSockets import sendReliablyBinary, recvReliablyBinary2, emptySocket
+
+_logger = logging.getLogger(__name__)
 
 
 def nth(iterable, n, default=None):
@@ -73,26 +77,24 @@ class RemoteTeamAgentClass(AgentClass):
         """
         self.Went = 0
         PossibleActions["contents"] = "requestActions"
-        print('now in RemoteAgent.py, requestActions, line 77  sending PossibleActions   length ',len(pickle.dumps(PossibleActions)))
-        # conn.send(pickle.dumps(PossibleActions))    # data size is about 18504 bytes?
-        sendReliablyBinary(pickle.dumps(PossibleActions),conn)
+        serialized = pickle.dumps(PossibleActions)
+        _logger.debug('requestActions: sending %d bytes', len(serialized))
+        sendReliablyBinary(serialized, conn)
 
         while True:
             try:
-                print('now in RemoteAgent.py, requestActions, line 81  receiving AgentAction')
-                data = conn.recv(1024)  # this line does not complete until all actions are selected for this player and the data is sent/received
-                print('size of data received is: ', len(data))   # data size is about 127 bytes
+                data = conn.recv(1024)
+                _logger.debug('requestActions: received %d bytes', len(data) if data else 0)
                 if data:
                     AgentAction = pickle.loads(data)
-                    print(AgentAction)
+                    _logger.debug('requestActions: deserialized action for agent %s', self.ID)
                     break
             except socket.error as error:
                 if error.errno == errno.ECONNREFUSED:
-                    print(os.strerror(error.errno))
-                    board.close()
-                    client.close()
+                    _logger.error('Connection refused: %s', error)
                 else:
-                    print(error)
+                    _logger.error('Socket error: %s', error)
+                break
 
         self.Went = 1
         self.Actions = AgentAction
@@ -116,18 +118,17 @@ class RemoteTeamAgentClass(AgentClass):
             newOrientation = Unit.Orientation
             d[Unit.ID] = {"AgentID":AgentID, "UnitID": Unit.ID, "newPos":newPosition, "newOri":newOrientation}
         d["contents"] = "updateClient"
-        print('now in RemoteAgent.py, updateClient, line 118  sending request to updateClient')
+        _logger.debug('updateClient: sending update for agent %s', self.ID)
         self.Connection.send(pickle.dumps(d))
         while True:
             try:
-                print('now in RemoteAgent.py, updateClient, line 122  receiving AgentAction')
                 data = self.Connection.recv(2048).decode('utf-8')
-                print('size of data received is: ', len(data))
+                _logger.debug('updateClient: received %d bytes', len(data) if data else 0)
                 if data:
-                    print(data)
                     break
             except Exception as e:
-                print('Error', e)
+                _logger.error('updateClient error: %s', e)
+                break
         self.Updated = 1
 
     def updateDecisionModel(self, Observations, PriorActions):
