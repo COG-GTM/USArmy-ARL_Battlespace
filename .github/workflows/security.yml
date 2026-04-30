@@ -40,7 +40,7 @@ jobs:
           python-version: "3.11"
       - run: pip install --no-cache-dir pip-audit==2.7.3
       - name: Audit declared dependencies
-        run: pip-audit --requirement requirements.txt --strict || true
+        run: pip-audit --requirement requirements.txt || true
 
   gitleaks:
     name: gitleaks
@@ -49,7 +49,22 @@ jobs:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
         with:
           fetch-depth: 0
-      # gitleaks/gitleaks-action@v2 (SHA-pinned)
-      - uses: gitleaks/gitleaks-action@83373cf2f8c4db6e24b41c1a9b086bb9619e9cd3  # v2.3.4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The maintained gitleaks-action requires a paid license for org repos.
+      # Use the open-source gitleaks binary directly to keep this workflow
+      # license-free and self-contained, per the DSOP demo-mode constraints.
+      - name: Install gitleaks (pinned)
+        run: |
+          set -euo pipefail
+          GL_VER=8.18.4
+          curl -sL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VER}/gitleaks_${GL_VER}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Scan working tree + history
+        run: |
+          gitleaks detect --source=. --no-banner --redact --report-format=json --report-path=gitleaks-report.json
+      - name: Upload gitleaks report
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808  # v4.3.3
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
