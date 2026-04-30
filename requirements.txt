@@ -1,0 +1,7 @@
+# USArmy-ARL_Battlespace runtime dependencies.
+# Wave-1+2 (DSOP shift-left): introduce a manifest, pin to stable patch ranges.
+# Tk is provided by the Python distribution / OS package (e.g. python3-tk on Debian/Ubuntu, tcl/tk on conda)
+# and does not install via pip on most platforms.
+dill>=0.3.7,<0.4.0
+numpy>=1.26,<3.0
+Pillow>=10.0.0,<12.0.0
