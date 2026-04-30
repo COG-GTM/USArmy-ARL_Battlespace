@@ -19,7 +19,10 @@ from src.UnitTypes.TruckModule import TruckClass
 from src.UnitTypes.AirplaneModule import AirplaneClass
 from src.AgentTypes.RemoteAgent import RemoteTeamAgentClass
 from src.UnitTypes.WallUnitModule import WallClass
-import dill as pickle
+# Wave 3 CWE-502 remediation: pickle.dumps() on network TX has been replaced
+# with an HMAC-signed JSON envelope. STIG V-220631 / V-220632, NIST SI-10 /
+# SC-8 / SC-28.
+from src.secure_envelope import pack, shared_secret  # noqa: E402
 
 def first(D):
     for key in D.keys():
@@ -222,7 +225,7 @@ class TeamAnnihilationGameClass(GameClass):
         for Agent in self.Agents.values():
             print(type(Agent))
             if isinstance(Agent, RemoteTeamAgentClass):
-                Agent.Connection.send(pickle.dumps(msg))
+                Agent.Connection.send(pack(msg, shared_secret()))
                 
                 
             else:
