@@ -5,10 +5,18 @@ from src.AgentTypes.TeamAgents import TeamHumanAgentClass
 import itertools
 import socket
 from _thread import *
-import dill as pickle
 import errno
 import select
 from reliableSockets import sendReliablyBinary, recvReliablyBinary2, emptySocket
+# Wave 3 CWE-502 remediation: pickle.loads()/dumps() on network-derived bytes
+# is replaced with an HMAC-signed JSON envelope. See src/secure_envelope.py
+# and SECURITY.md. STIG V-220631 / V-220632, NIST SI-10 / SC-8 / SC-28.
+from secure_envelope import EnvelopeError, pack, shared_secret, unpack  # noqa: E402
+
+# Permissive JSON-Schema for agent actions / observed state. The schema enforces
+# "must be a JSON object" at the envelope layer; semantic validation is done by
+# the game engine against its own invariants. Wave 4 will tighten this.
+_AGENT_PAYLOAD_SCHEMA = {"type": "object"}
 
 
 def nth(iterable, n, default=None):
@@ -73,17 +81,21 @@ class RemoteTeamAgentClass(AgentClass):
         """
         self.Went = 0
         PossibleActions["contents"] = "requestActions"
-        print('now in RemoteAgent.py, requestActions, line 77  sending PossibleActions   length ',len(pickle.dumps(PossibleActions)))
-        # conn.send(pickle.dumps(PossibleActions))    # data size is about 18504 bytes?
-        sendReliablyBinary(pickle.dumps(PossibleActions),conn)
+        envelope = pack(PossibleActions, shared_secret())
+        print('now in RemoteAgent.py, requestActions, line 77  sending PossibleActions   length ', len(envelope))
+        sendReliablyBinary(envelope, conn)
 
         while True:
             try:
                 print('now in RemoteAgent.py, requestActions, line 81  receiving AgentAction')
                 data = conn.recv(1024)  # this line does not complete until all actions are selected for this player and the data is sent/received
-                print('size of data received is: ', len(data))   # data size is about 127 bytes
+                print('size of data received is: ', len(data))
                 if data:
-                    AgentAction = pickle.loads(data)
+                    try:
+                        AgentAction = unpack(data, shared_secret(), _AGENT_PAYLOAD_SCHEMA)
+                    except EnvelopeError as envelope_error:
+                        print('RemoteAgent.py requestActions: rejecting tampered/invalid envelope:', envelope_error)
+                        continue
                     print(AgentAction)
                     break
             except socket.error as error:
@@ -117,7 +129,7 @@ class RemoteTeamAgentClass(AgentClass):
             d[Unit.ID] = {"AgentID":AgentID, "UnitID": Unit.ID, "newPos":newPosition, "newOri":newOrientation}
         d["contents"] = "updateClient"
         print('now in RemoteAgent.py, updateClient, line 118  sending request to updateClient')
-        self.Connection.send(pickle.dumps(d))
+        self.Connection.send(pack(d, shared_secret()))
         while True:
             try:
                 print('now in RemoteAgent.py, updateClient, line 122  receiving AgentAction')

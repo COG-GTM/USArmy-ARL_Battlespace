@@ -18,7 +18,10 @@ from src.UnitTypes.TankModule import TankClass
 from src.UnitTypes.TruckModule import TruckClass
 from src.UnitTypes.AirplaneModule import AirplaneClass
 from src.AgentTypes.RemoteAgent import RemoteTeamAgentClass
-import dill as pickle
+# Wave 3 CWE-502 remediation: pickle.dumps() on network TX has been replaced
+# with an HMAC-signed JSON envelope. STIG V-220631 / V-220632, NIST SI-10 /
+# SC-8 / SC-28.
+from src.secure_envelope import pack, shared_secret  # noqa: E402
 from reliableSockets import sendReliablyBinary
 
 
@@ -241,9 +244,9 @@ class TeamCaptureFlagClass(GameClass):
             print(type(Agent))
             if isinstance(Agent, RemoteTeamAgentClass):
                 print('sending a pickled message from TeamCaptureFlagGameHealth.py line 244')
-                Agent.Connection.send(pickle.dumps(msg))
-                # sendReliablyBinary(pickle.dumps(msg),Agent.connection)
-                
+                Agent.Connection.send(pack(msg, shared_secret()))
+                # sendReliablyBinary(pack(msg, shared_secret()),Agent.connection)
+
             else:
                 print('something went wrong')
             
@@ -361,8 +364,8 @@ class TeamCaptureFlagClass(GameClass):
             print(type(Agent))
             if isinstance(Agent, RemoteTeamAgentClass):
                 print('sending a pickled message from TeamCaptureFlagGameHealth.py line 363')
-                Agent.Connection.send(pickle.dumps(msg))
-                # sendReliablyBinary(pickle.dumps(msg),Agent.connection)
+                Agent.Connection.send(pack(msg, shared_secret()))
+                # sendReliablyBinary(pack(msg, shared_secret()),Agent.connection)
                 
             else:
                 print('something went wrong')

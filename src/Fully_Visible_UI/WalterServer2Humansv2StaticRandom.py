@@ -12,7 +12,16 @@ sys.path.append(r'C:\Users\wpere\Documents\Army\July\dfvc2-Development\src\State
 sys.path.append(r'C:\Users\wpere\Documents\Army\July\dfvc2-Development\src\UnitTypes')
 import socket
 from _thread import *
-import dill as pickle
+
+# Wave 3 CWE-502 remediation: pickle.loads()/dumps() on network-derived bytes
+# has been replaced with an HMAC-signed JSON envelope. See src/secure_envelope.py
+# and SECURITY.md. STIG V-220631 / V-220632, NIST SI-10 / SC-8 / SC-28.
+import os as _os
+sys.path.insert(0, _os.path.realpath(_os.path.join(_os.path.dirname(__file__), '..')))
+from secure_envelope import EnvelopeError, pack, shared_secret, unpack  # noqa: E402
+
+_WAVE3_PAYLOAD_SCHEMA = {"type": "object"}
+
 from TeamState import TeamStateClass
 from TeamCaptureFlagGame import TeamCaptureFlagClass
 from TeamAgents import TeamHumanAgentClass, TeamStaticRandomAgentClass, TeamUniformRandomAgentClass
@@ -144,7 +153,7 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
     counter = 0
     AgentDict[PlayerID] = {}
     x = {"contents":"PlayerID","data":PlayerID}
-    conn.send(pickle.dumps(x))
+    conn.send(pack(x, shared_secret()))
     init = True
     while init:
         try:
@@ -154,7 +163,7 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
                     data = conn.recv(2048).decode('utf-8')
                     print('[Received] '+data)
                     x = {"contents":"TeamID","data":TeamID}
-                    conn.send(pickle.dumps(x))
+                    conn.send(pack(x, shared_secret()))
                     init = False
                     break
         except:
@@ -169,7 +178,7 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
                     data = conn.recv(2048).decode('utf-8')
                     print('[Received] '+data)
                     AgentDict["contents"] = "AgentDict"
-                    msg = pickle.dumps(AgentDict)
+                    msg = pack(AgentDict, shared_secret())
                     broadcast(msg)
                     #conn.send(msg)
                     init = False
@@ -186,7 +195,11 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
                     data = conn.recv(1024)
                     # Check if a message was received from the Client
                     if data:
-                        data = pickle.loads(data)
+                        try:
+                            data = unpack(data, shared_secret(), _WAVE3_PAYLOAD_SCHEMA)
+                        except EnvelopeError as envelope_error:
+                            print('WalterServer initPositions: rejecting tampered/invalid envelope:', envelope_error)
+                            continue
                         print(data)
                         UnitID = list(data.keys())[0]
                         Position = data[UnitID]
@@ -204,7 +217,7 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
                         else:
                             Ori = (0,-1,0)
                         d = {"id":PlayerID, "UnitID": UnitID, "currMod": curr_mod, "nextMod": next_mod, "oldPos": oldPos, "newPos":newPos, "newOri":Ori,"contents":"RemoteAgent" }
-                        msg = pickle.dumps(d)
+                        msg = pack(d, shared_secret())
                         broadcast(msg)
                         aPositions[PlayerID][curr_mod] = newPos
                         if counter == 0:
@@ -241,7 +254,7 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
     return State0 # This might be redundant?
 
 def sendResult(conn, Result):
-    conn.send(pickle.dumps(Result))
+    conn.send(pack(Result, shared_secret()))
 
 def build_board(BoardSize):
     board = []

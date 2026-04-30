@@ -9,7 +9,14 @@ sys.path.append(os.path.realpath('..'))
 
 import socket
 from _thread import *
-import dill as pickle
+
+# Wave 3 CWE-502 remediation: pickle.loads()/dumps() on network-derived bytes
+# has been replaced with an HMAC-signed JSON envelope. See src/secure_envelope.py
+# and SECURITY.md. STIG V-220631 / V-220632, NIST SI-10 / SC-8 / SC-28.
+sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+from secure_envelope import EnvelopeError, pack, shared_secret, unpack  # noqa: E402
+
+_WAVE3_PAYLOAD_SCHEMA = {"type": "object"}
 
 import src
 from src.StateTypes.TeamState import TeamStateClass
@@ -165,21 +172,23 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
     counter = 0
     AgentDict[PlayerID] = {}
     x = {"contents":"PlayerID","data":PlayerID}
-    print('now in ServerWithUI, initPositions, line 167  sending contents = data : PlayerID = PlayerID   length ',len(pickle.dumps(x)))
-    conn.send(pickle.dumps(x))
+    envelope = pack(x, shared_secret())
+    print('now in ServerWithUI, initPositions, line 167  sending contents = data : PlayerID = PlayerID   length ', len(envelope))
+    conn.send(envelope)
     init = True
     while init:
         try:
             readable, writable, errored = select.select([conn], [], [],0)
             for sock in readable:
                 if sock is conn:
-                    print('now in ServerWithUI, initPositions, line 177  receiving data')   # size of data received is about 10-12 bytes
+                    print('now in ServerWithUI, initPositions, line 177  receiving data')
                     data = conn.recv(2048).decode('utf-8')
                     print('size of data received is: ', len(data))
                     print('[Received] '+data)
                     x = {"contents":"TeamID","data":TeamID}
-                    print('now in ServerWithUI, initPositions, line 182  sending TeamID   length ',len(pickle.dumps(x)))   # length is about 49 bytes
-                    conn.send(pickle.dumps(x))
+                    envelope = pack(x, shared_secret())
+                    print('now in ServerWithUI, initPositions, line 182  sending TeamID   length ', len(envelope))
+                    conn.send(envelope)
                     init = False
                     break
         except:
@@ -193,10 +202,14 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
                 if sock is conn:
                     print('now in ServerWithUI, initPositions, line 196  receiving data')
                     data = conn.recv(1024)
-                    print('size of data received is: ', len(data))   # length of data received is about 18 bytes
+                    print('size of data received is: ', len(data))
                     # Check if a message was received from the Client
                     if data:
-                        data = pickle.loads(data)
+                        try:
+                            data = unpack(data, shared_secret(), _WAVE3_PAYLOAD_SCHEMA)
+                        except EnvelopeError as envelope_error:
+                            print('ServerWithUI initPositions: rejecting tampered/invalid envelope:', envelope_error)
+                            continue
                         print(data)
                         UnitID = list(data.keys())[0]
                         Position = data[UnitID]
@@ -214,7 +227,7 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
                         else:
                             Ori = (0,-1,0)
                         d = {"id":PlayerID, "UnitID": UnitID, "currMod": curr_mod, "nextMod": next_mod, "oldPos": oldPos, "newPos":newPos, "newOri":Ori,"contents":"RemoteAgent" }
-                        msg = pickle.dumps(d)
+                        msg = pack(d, shared_secret())
                         broadcast(msg)
                         aPositions[PlayerID][curr_mod] = newPos
                         if counter == 0:
@@ -369,8 +382,8 @@ def sendResult(conn, Result):
     Result: [str]
         Game result
     """
-    print('now in ServerWithUI, sendResult, line 371  sending pickled Result')
-    conn.send(pickle.dumps(Result))
+    print('now in ServerWithUI, sendResult, line 371  sending signed Result envelope')
+    conn.send(pack(Result, shared_secret()))
     print("Game Over.  Press Ctrl-C to exit.")
     conn.close()
 

@@ -10,11 +10,17 @@ from itertools import cycle
 import random
 import os
 import socket
-import pickle
 from TeamState import TeamStateClass
 from _thread import *
-import dill as pickle
 import select
+
+# Wave 3 CWE-502 remediation: pickle.loads()/dumps() on network-derived bytes
+# has been replaced with an HMAC-signed JSON envelope. See src/secure_envelope.py
+# and SECURITY.md. STIG V-220631 / V-220632, NIST SI-10 / SC-8 / SC-28.
+sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..')))
+from secure_envelope import EnvelopeError, pack, shared_secret, unpack  # noqa: E402
+
+_WAVE3_PAYLOAD_SCHEMA = {"type": "object"}
 from copy import deepcopy
 import tkinter as tk
 import time
@@ -43,7 +49,7 @@ def mouse_fn(btn, row, col):    # mouse calback function
     global client
     temp = {}
     temp[PlayerID] = (col,9-row,0)
-    msg = pickle.dumps(temp)
+    msg = pack(temp, shared_secret())
     client.send(msg)
 
 def sendMessage(msg, conn):
@@ -95,7 +101,11 @@ def timer_fn():
             if client == sock:
                 data = client.recv(4096)
                 if data:
-                    data = pickle.loads(data)
+                    try:
+                        data = unpack(data, shared_secret(), _WAVE3_PAYLOAD_SCHEMA)
+                    except EnvelopeError as envelope_error:
+                        print('interface.py timer_fn: rejecting tampered/invalid envelope:', envelope_error)
+                        return
                     contents = data["contents"]
                     if data["contents"] == "RemoteAgent":
                         newPosition = data["newPos"]
@@ -140,7 +150,7 @@ def timer_fn():
                         for UnitID in PossibleActions.keys():
                             Action = (UnitID,[getUnitAction(UnitTypes[UnitID],PossibleActions[UnitID],'',0)])
                             Actions.append(Action)
-                        client.send(pickle.dumps(Actions))
+                        client.send(pack(Actions, shared_secret()))
                         contents = ""
                         remoteActions = []
                         remoteIDX = 0
@@ -200,7 +210,11 @@ def newgame():
                 if sock is client:
                     data = client.recv(4096)
                     if data:
-                        data = pickle.loads(data)
+                        try:
+                            data = unpack(data, shared_secret(), _WAVE3_PAYLOAD_SCHEMA)
+                        except EnvelopeError as envelope_error:
+                            print('interface.py newgame: rejecting tampered/invalid envelope:', envelope_error)
+                            continue
                         #print(data)
                         if data["contents"] == "PlayerID":
                             PlayerID = data["data"]

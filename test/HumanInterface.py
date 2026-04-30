@@ -9,11 +9,17 @@ import itertools
 import random
 import os
 import socket
-import pickle
 from src.StateTypes.TeamState import TeamStateClass
 from _thread import *
-import dill as pickle
 import select
+
+# Wave 3 CWE-502 remediation: pickle.loads()/dumps() on network-derived bytes
+# has been replaced with an HMAC-signed JSON envelope. See src/secure_envelope.py
+# and SECURITY.md. STIG V-220631 / V-220632, NIST SI-10 / SC-8 / SC-28.
+sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+from secure_envelope import EnvelopeError, pack, shared_secret, unpack  # noqa: E402
+
+_WAVE3_PAYLOAD_SCHEMA = {"type": "object"}
 from copy import deepcopy
 import tkinter as tk
 import time
@@ -70,7 +76,7 @@ def mouse_fn(btn, row, col, verbose = False):    # mouse calback function
     global client
     temp = {}
     temp[PlayerID] = (col,board._nrows-row-1,0)
-    msg = pickle.dumps(temp)
+    msg = pack(temp, shared_secret())
     if verbose: print('HumanInterface.py, mouse_fn line 73  sending msg length ',len(msg))
     client.send(msg)
 
@@ -112,7 +118,7 @@ def timer_fn(verbose = False):
         remoteActions.append((UnitID,[Action]))
         remoteIDX += 1
         if remoteIDX >= len(ActionOptions):
-            client.send(pickle.dumps(remoteActions))
+            client.send(pack(remoteActions, shared_secret()))
             contents = ""
             remoteActions = []
             remoteIDX = 0
@@ -167,10 +173,10 @@ def timer_fn(verbose = False):
                     if verbose: print('data is type ',type(data), 'of length ',len(data))
                     pickleLoadSuccessful = False
                     try:
-                        data = pickle.loads(data)
+                        data = unpack(data, shared_secret(), _WAVE3_PAYLOAD_SCHEMA)
                         pickleLoadSuccessful = True
-                    except:
-                        print('HumanInterface.py line 156:  Failed to unpickle data at time ',int(round(time.time() * 1000)))
+                    except EnvelopeError as envelope_error:
+                        print('HumanInterface.py line 156:  Rejected tampered/invalid envelope at time ',int(round(time.time() * 1000)),' reason: ',envelope_error)
                         print('Ignoring this bad packet.')
                     if pickleLoadSuccessful == True:                   
                         print('HumanInterface.py line 158:  Successful unpickle of data at time ',int(round(time.time() * 1000)))
@@ -233,7 +239,7 @@ def timer_fn(verbose = False):
                                 #Action = (UnitID,[getUnitAction(UnitTypes[UnitID],PossibleActions[UnitID],'',0)])
                                 Action = ( UnitID, [ getUnitAction(UnitTypes[UnitID], PossibleActions[UnitID],'', ActionNames[UnitID]) ] )
                                 Actions.append(Action)
-                            client.send(pickle.dumps(Actions))
+                            client.send(pack(Actions, shared_secret()))
                             contents = ""
                             remoteActions = []
                             remoteIDX = 0
@@ -293,8 +299,11 @@ def newgame():
                 if sock is client:
                     data = client.recv(4096)
                     if data:
-                        data = pickle.loads(data)
-                        #print(data)
+                        try:
+                            data = unpack(data, shared_secret(), _WAVE3_PAYLOAD_SCHEMA)
+                        except EnvelopeError as envelope_error:
+                            print('HumanInterface.py newgame: rejecting tampered/invalid envelope:', envelope_error)
+                            continue
                         if data["contents"] == "PlayerID":
                             PlayerID = data["data"]
                             sendMessage('got PlayerID',client)
