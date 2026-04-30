@@ -1,0 +1,70 @@
+name: security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  bandit:
+    name: bandit
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout@v4 (SHA-pinned per DSOP Wave-1 SHA-pinning practice)
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+      # actions/setup-python@v5 (SHA-pinned)
+      - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c  # v5.0.0
+        with:
+          python-version: "3.11"
+      - name: Install bandit
+        run: pip install --no-cache-dir "bandit[toml]==1.7.9"
+      - name: Run bandit (informational; non-blocking until remediated)
+        run: bandit -r src test -ll --exit-zero -f json -o bandit-report.json
+      - name: Upload bandit report
+        # actions/upload-artifact@v4 (SHA-pinned)
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808  # v4.3.3
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+  pip-audit:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+      - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c  # v5.0.0
+        with:
+          python-version: "3.11"
+      - run: pip install --no-cache-dir pip-audit==2.7.3
+      - name: Audit declared dependencies
+        run: pip-audit --requirement requirements.txt || true
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+        with:
+          fetch-depth: 0
+      # The maintained gitleaks-action requires a paid license for org repos.
+      # Use the open-source gitleaks binary directly to keep this workflow
+      # license-free and self-contained, per the DSOP demo-mode constraints.
+      - name: Install gitleaks (pinned)
+        run: |
+          set -euo pipefail
+          GL_VER=8.18.4
+          curl -sL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VER}/gitleaks_${GL_VER}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Scan working tree + history
+        run: |
+          gitleaks detect --source=. --no-banner --redact --report-format=json --report-path=gitleaks-report.json
+      - name: Upload gitleaks report
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808  # v4.3.3
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
