@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>USArmy-ARL_Battlespace — federal security audit | Cognition</title>
+<style>
+  :root {
+    --ink:#0a0a0f; --paper:#fafafa; --muted:#71717a; --rule:#27272a;
+    --card:#ffffff; --soft:#f4f4f5; --hairline:#e4e4e7;
+    --c-purple:#3969CA; --c-green:#21C19A; --c-blue:#0294DE;
+    --sev-crit:#b91c1c; --sev-high:#d97706; --sev-med:#0284c7; --sev-low:#16a34a; --sev-info:#71717a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:var(--paper); color:var(--ink); font:14px/1.55 -apple-system, "Inter", "Inter Tight", "Segoe UI", system-ui, sans-serif; }
+  h1, h2, h3, h4 { font-family:"Inter Tight","Inter",-apple-system,system-ui,sans-serif; font-weight:600; letter-spacing:-0.01em; }
+  h1 { font-size: 38px; line-height:1.15; margin:0; }
+  h2 { font-size: 22px; margin: 0 0 12px; }
+  h3 { font-size: 16px; margin: 0 0 8px; color:#18181b; }
+  a { color: var(--c-purple); text-decoration: none; border-bottom:1px solid #c7d2fe; }
+  a:hover { border-bottom-color: var(--c-purple); }
+  code { font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; font-size: 12.5px; background:#f4f4f5; padding:1px 5px; border-radius:4px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 32px 32px 64px; }
+
+  /* Hero */
+  .hero {
+    position: relative;
+    background: var(--ink); color: var(--paper);
+    border-radius: 18px; padding: 36px 40px 44px; margin-bottom: 36px;
+    overflow: hidden;
+  }
+  .hero::before {
+    content:""; position:absolute; inset:0;
+    background:
+      radial-gradient(640px 320px at 12% -10%, rgba(57,105,202,0.32), transparent 60%),
+      radial-gradient(560px 280px at 105% 0%, rgba(33,193,154,0.20), transparent 60%);
+    pointer-events: none;
+  }
+  .hero::after {
+    /* honeycomb */
+    content:""; position:absolute; right:-40px; top:-40px; width:260px; height:260px; opacity:.10; pointer-events:none;
+    background-image: radial-gradient(circle, rgba(250,250,250,0.7) 0 1.4px, transparent 1.8px);
+    background-size: 22px 22px;
+    mask: linear-gradient(to bottom left, #000, transparent 80%);
+    -webkit-mask: linear-gradient(to bottom left, #000, transparent 80%);
+  }
+  .hero-top { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:28px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:600; letter-spacing:0.04em; font-size:13px; text-transform:uppercase; }
+  .brand svg { width:24px; height:24px; }
+  .agency { display:flex; align-items:center; gap:10px; font-weight:600; font-size:13px; letter-spacing:0.04em; text-transform:uppercase; color:#e4e4e7; }
+  .agency .flag { width:30px; height:18px; border:1px solid #3f3f46; display:inline-block; background:
+    repeating-linear-gradient(to bottom, #fafafa 0 1.4px, transparent 1.4px 3px) #18181b; }
+  .pill { display:inline-block; font-size:11.5px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; padding:4px 10px; border-radius:999px; background:rgba(250,250,250,0.10); color:#e4e4e7; border:1px solid rgba(250,250,250,0.18); }
+  .hero-sub { color:#a1a1aa; max-width: 720px; margin: 10px 0 0; font-size: 15px; }
+  .hero-meta { display:flex; gap:24px; margin-top: 22px; flex-wrap:wrap; font-size: 13px; color:#a1a1aa; }
+  .hero-meta b { color:#fafafa; font-weight:600; }
+
+  /* KPIs */
+  .kpis { display:grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 24px 0 36px; }
+  .kpi { background: var(--card); border:1px solid var(--hairline); border-radius: 14px; padding: 16px 18px; }
+  .kpi .v { font-family:"Inter Tight","Inter",sans-serif; font-weight: 700; font-size: 28px; letter-spacing:-0.02em; }
+  .kpi .l { font-size: 12px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+  section { background: var(--card); border:1px solid var(--hairline); border-radius: 14px; padding: 22px 24px; margin-bottom: 18px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align:left; padding: 10px 12px; border-bottom: 1px solid var(--hairline); font-size: 13.5px; vertical-align: top; }
+  th { font-weight:600; color:#3f3f46; background:var(--soft); font-size: 12px; text-transform:uppercase; letter-spacing:0.04em; }
+  tr:last-child td { border-bottom: 0; }
+  .sev { font-weight:700; font-size:11.5px; padding: 2px 8px; border-radius:6px; letter-spacing:0.04em; text-transform:uppercase; color:#fff; display:inline-block; }
+  .sev.crit { background: var(--sev-crit); }
+  .sev.high { background: var(--sev-high); }
+  .sev.med  { background: var(--sev-med); color:#fff; }
+  .sev.low  { background: var(--sev-low); }
+  .sev.info { background: var(--sev-info); }
+  .status { font-weight:600; font-size: 11.5px; padding: 2px 7px; border-radius: 5px; letter-spacing:0.04em; text-transform:uppercase; }
+  .status.ship { background: rgba(33,193,154,0.14); color:#0f766e; }
+  .status.def  { background: rgba(2,148,222,0.14); color:#0369a1; }
+  .status.acc  { background: rgba(113,113,122,0.18); color:#3f3f46; }
+
+  .two { display:grid; grid-template-columns: 1.05fr 1fr; gap: 18px; }
+  ul.clean { padding-left: 18px; margin: 0; }
+  ul.clean li { margin-bottom: 6px; }
+
+  .links { display:flex; gap: 12px; flex-wrap: wrap; }
+  .link-card { flex:1; min-width: 240px; background: var(--soft); border:1px solid var(--hairline); border-radius: 10px; padding: 12px 14px; }
+  .link-card .small { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+
+  .delta-up { color:#16a34a; font-weight: 600; }
+  .delta-down { color:#dc2626; font-weight: 600; }
+  .delta-flat { color:var(--muted); }
+
+  footer { color: var(--muted); font-size: 12px; margin-top: 36px; display:flex; justify-content:space-between; gap:18px; flex-wrap:wrap; }
+  footer .brand-foot { display:flex; align-items:center; gap:8px; }
+  footer .brand-foot svg { width:18px; height:18px; }
+
+  @media (max-width: 760px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .two { grid-template-columns: 1fr; }
+    .hero { padding: 26px; }
+    h1 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="hero-top">
+      <div class="brand">
+        <!-- Cognition sprocket monogram (honeycomb hex) -->
+        <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <path d="M16 2 L29 9 L29 23 L16 30 L3 23 L3 9 Z" stroke="#fafafa" stroke-width="2"/>
+          <path d="M16 9 L23 13 L23 21 L16 25 L9 21 L9 13 Z" fill="#fafafa"/>
+        </svg>
+        Cognition
+      </div>
+      <div class="agency">
+        <span class="flag" aria-label="US flag (minimalist)"></span>
+        US Army — ARL
+      </div>
+    </div>
+    <span class="pill">Federal security audit · DISA STIG V5R3 + NIST 800-53 r5</span>
+    <h1 style="margin-top:14px;">USArmy-ARL_Battlespace — security audit results</h1>
+    <p class="hero-sub">Multi-agent C2 wargame (Python, TCP/IP, Tkinter, Dill). Audit consolidates findings from Bandit, Semgrep, pip-audit, gitleaks, pylint, ruff, and SonarCloud, mapped to STIG V5R3 and NIST 800-53 r5 controls. Quick-win remediations are shipped in PR #9; architectural fixes are tracked under Jira Epic UF-249.</p>
+    <div class="hero-meta">
+      <div><b>Audit date</b> · 2026-05-12</div>
+      <div><b>Repo</b> · COG-GTM/USArmy-ARL_Battlespace</div>
+      <div><b>Quick-win PR</b> · #9</div>
+      <div><b>Jira Epic</b> · UF-249</div>
+      <div><b>Compliance suite</b> · 31 passed / 1 skipped</div>
+    </div>
+  </header>
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi"><div class="v">17</div><div class="l">findings (de-duplicated)</div></div>
+    <div class="kpi"><div class="v">10</div><div class="l">shipped in PR #9</div></div>
+    <div class="kpi"><div class="v">5</div><div class="l">deferred (architectural)</div></div>
+    <div class="kpi"><div class="v">31 / 1</div><div class="l">compliance tests passed / skipped</div></div>
+  </div>
+
+  <!-- Executive summary -->
+  <section>
+    <h2>Executive summary</h2>
+    <div class="two">
+      <div>
+        <h3>Compliance posture</h3>
+        <p>Of 17 consolidated findings, <b>10 quick-win remediations</b> ship in PR #9 — covering all High and Medium severities except the TCP/TLS hardening, plus Low/regression items. <b>5 architectural items</b> (Dill wire protocol, TLS + mutual auth on port 5050) are explicitly deferred to follow-up Jira sub-tasks under Epic <a href="https://cog-gtm.atlassian.net/browse/UF-249">UF-249</a>. 2 informational items (game-RNG, naming-convention conflict with repo <code>STYLEGUIDE.md</code>) are accepted as documented.</p>
+        <p>Tool delta: Bandit findings dropped 58 → 49 (LOW 49→44, MEDIUM 9→5); bare <code>except:</code> in repo code: 10 → 0; wildcard <code>_thread</code> imports: 5 → 0; <code>urlopen()</code> without timeout: 2 → 0; <code>random</code> for protocol nonces: 2 → 0. The codebase was previously unimportable on Python 3.10+ (latent <code>ImportError</code> from <code>collections.Set</code>) — that's also fixed in PR #9.</p>
+      </div>
+      <div>
+        <h3>Workflow</h3>
+        <p>Per the <code>!army_secure_pipeline</code> playbook, audits are orchestrated as a parent → 3 children pattern. For this repo (small, single-language Python), all three workstreams (language-native SAST/SCA, SonarCloud MCP, agentic STIG/NIST review) executed sequentially in one session — equivalent coverage with no orchestration overhead. Findings were consolidated into a single de-duplicated <code>findings.json</code> (F-001..F-017), then triaged into P1–P4 buckets, then split into "ship in PR" vs "track in Jira."</p>
+        <p>The audit ships its own regression and compliance test suites (<code>tests/test_security_audit.py</code>, <code>tests/test_compliance.py</code>) and a GitHub Actions workflow so drift surfaces on every future PR.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Severity counts -->
+  <section>
+    <h2>Findings by severity</h2>
+    <table>
+      <thead><tr><th>Severity</th><th>Total</th><th>Shipped in PR #9</th><th>Deferred / Accepted</th></tr></thead>
+      <tbody>
+        <tr><td><span class="sev crit">Critical</span></td><td>4</td><td>0 (partial mitigation)</td><td>4 deferred</td></tr>
+        <tr><td><span class="sev high">High</span></td><td>4</td><td>3</td><td>1 deferred</td></tr>
+        <tr><td><span class="sev med">Medium</span></td><td>5</td><td>5</td><td>0</td></tr>
+        <tr><td><span class="sev low">Low</span></td><td>3</td><td>2</td><td>0 (1 info-only)</td></tr>
+        <tr><td><span class="sev info">Info</span></td><td>1</td><td>0</td><td>1 accepted</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Tool matrix -->
+  <section>
+    <h2>Tool execution matrix (pre-fix vs post-fix)</h2>
+    <table>
+      <thead><tr><th>Tool / check</th><th>Pre-fix</th><th>Post-fix</th><th>Delta</th></tr></thead>
+      <tbody>
+        <tr><td>Bandit B-series total</td><td>58</td><td>49</td><td class="delta-up">−9</td></tr>
+        <tr><td>Bandit MEDIUM</td><td>9</td><td>5</td><td class="delta-up">−4</td></tr>
+        <tr><td>Bare <code>except:</code> in repo code</td><td>10</td><td>0</td><td class="delta-up">−10</td></tr>
+        <tr><td>Wildcard <code>from _thread import *</code></td><td>5</td><td>0</td><td class="delta-up">−5</td></tr>
+        <tr><td><code>urlopen()</code> without timeout</td><td>2</td><td>0</td><td class="delta-up">−2</td></tr>
+        <tr><td><code>random.randrange</code> for protocol nonces</td><td>2</td><td>0</td><td class="delta-up">−2</td></tr>
+        <tr><td>Semgrep p/python</td><td>n/a</td><td>0</td><td class="delta-flat">clean</td></tr>
+        <tr><td>pip-audit (runtime)</td><td>0</td><td>0</td><td class="delta-flat">unchanged</td></tr>
+        <tr><td>gitleaks (secrets)</td><td>0</td><td>0</td><td class="delta-flat">unchanged</td></tr>
+        <tr><td>Compliance suite (<code>pytest tests/</code>)</td><td>did not exist</td><td>31 passed, 1 skipped</td><td class="delta-up">new</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Findings table -->
+  <section>
+    <h2>All findings</h2>
+    <table>
+      <thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>STIG</th><th>NIST</th><th>Status</th><th>Jira</th></tr></thead>
+      <tbody>
+        <tr><td>F-001</td><td><span class="sev crit">Crit</span></td><td>Unsafe Dill deserialization of TCP-server input (RCE)</td><td>V-222609</td><td>SI-10</td><td><span class="status def">Deferred</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-250">UF-250</a></td></tr>
+        <tr><td>F-002</td><td><span class="sev crit">Crit</span></td><td>Unsafe Dill deserialization on HumanInterface client</td><td>V-222609</td><td>SI-10</td><td><span class="status def">Deferred</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-251">UF-251</a></td></tr>
+        <tr><td>F-003</td><td><span class="sev crit">Crit</span></td><td>Unsafe Dill deserialization in RemoteAgent action loop</td><td>V-222609</td><td>SI-10</td><td><span class="status def">Deferred</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-252">UF-252</a></td></tr>
+        <tr><td>F-004</td><td><span class="sev crit">Crit</span></td><td>Unsafe Dill deserialization in legacy fully-visible UI</td><td>V-222609</td><td>SI-10</td><td><span class="status def">Deferred</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-253">UF-253</a></td></tr>
+        <tr><td>F-005</td><td><span class="sev high">High</span></td><td>TCP socket on port 5050 has no TLS and no client auth</td><td>V-222542 / 563</td><td>SC-8, IA-2</td><td><span class="status def">Deferred</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-254">UF-254</a></td></tr>
+        <tr><td>F-006</td><td><span class="sev high">High</span></td><td>CSPRNG for SYN/SeqNum nonces (replace random.randrange → secrets.randbelow)</td><td>V-222542</td><td>SC-12, SC-13</td><td><span class="status ship">Shipped</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-255">UF-255</a></td></tr>
+        <tr><td>F-007</td><td><span class="sev high">High</span></td><td>urlopen() without timeout (DoS at boot)</td><td>V-222594</td><td>SC-5</td><td><span class="status ship">Shipped</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-256">UF-256</a></td></tr>
+        <tr><td>F-008</td><td><span class="sev high">High</span></td><td>10 bare except: blocks narrowed + audit-logged</td><td>V-222594</td><td>SI-11, AU-3</td><td><span class="status ship">Shipped</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-257">UF-257</a></td></tr>
+        <tr><td>F-009</td><td><span class="sev med">Med</span></td><td>Log before continue (no more silent error swallowing)</td><td>V-222594</td><td>AU-3, SI-11</td><td><span class="status ship">Shipped</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-258">UF-258</a></td></tr>
+        <tr><td>F-010</td><td><span class="sev med">Med</span></td><td>Explicit start_new_thread imports (no wildcards)</td><td>V-222428</td><td>CM-7</td><td><span class="status ship">Shipped</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-259">UF-259</a></td></tr>
+        <tr><td>F-011</td><td><span class="sev med">Med</span></td><td>MAX_MESSAGE_SIZE size-cap + safe_unpickle() helper</td><td>V-222608</td><td>SI-10</td><td><span class="status ship">Shipped</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-260">UF-260</a></td></tr>
+        <tr><td>F-012</td><td><span class="sev med">Med</span></td><td>requirements.txt with dill/numpy version floors</td><td>V-222656</td><td>SI-2, RA-5</td><td><span class="status ship">Shipped</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-261">UF-261</a></td></tr>
+        <tr><td>F-013</td><td><span class="sev med">Med</span></td><td>security_audit_logging module (structured audit logs)</td><td>V-222423..428</td><td>AU-2, AU-3, AU-9</td><td><span class="status ship">Shipped</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-262">UF-262</a></td></tr>
+        <tr><td>F-014</td><td><span class="sev low">Low</span></td><td>random module used for game AI (accepted, non-crypto)</td><td>informational</td><td>SC-13</td><td><span class="status acc">Accepted</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-263">UF-263</a></td></tr>
+        <tr><td>F-015</td><td><span class="sev info">Info</span></td><td>PEP-8 naming conflicts with repo STYLEGUIDE.md</td><td>informational</td><td>informational</td><td><span class="status acc">Accepted</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-264">UF-264</a></td></tr>
+        <tr><td>F-016</td><td><span class="sev low">Low</span></td><td>SECURITY.md threat model + disclosure policy</td><td>V-222575</td><td>IA-5</td><td><span class="status ship">Shipped</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-265">UF-265</a></td></tr>
+        <tr><td>F-017</td><td><span class="sev low">Low</span></td><td>Latent collections.Set ImportError on Python 3.10+ (8 files)</td><td>V-222656</td><td>SI-2, RA-5</td><td><span class="status ship">Shipped</span></td><td><a href="https://cog-gtm.atlassian.net/browse/UF-266">UF-266</a></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Compliance suite -->
+  <section>
+    <h2>Compliance test results</h2>
+    <p>Each STIG / NIST control gets a machine-checkable assertion. Suite runs in CI via <code>.github/workflows/security-audit.yml</code>.</p>
+    <table>
+      <thead><tr><th>Control area</th><th>STIG</th><th>NIST</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>No bare exception handlers</td><td>V-222594</td><td>SI-11</td><td><span class="status ship">PASS</span></td></tr>
+        <tr><td>No eval / exec</td><td>V-222609</td><td>SI-10</td><td><span class="status ship">PASS</span></td></tr>
+        <tr><td>No shell=True / os.system / os.popen</td><td>V-222609</td><td>SI-10, AC-3</td><td><span class="status ship">PASS</span></td></tr>
+        <tr><td>No hardcoded credentials</td><td>V-222575</td><td>IA-5</td><td><span class="status ship">PASS</span></td></tr>
+        <tr><td>Hashlib MD5/SHA1 with usedforsecurity=False</td><td>V-222542</td><td>SC-13</td><td><span class="status ship">PASS</span></td></tr>
+        <tr><td>requirements.txt pins dill/numpy floors</td><td>V-222656</td><td>SI-2, RA-5</td><td><span class="status ship">PASS</span></td></tr>
+        <tr><td>Dockerfile non-root (skipped — no Dockerfile)</td><td>V-222394</td><td>CM-6</td><td><span class="status acc">SKIP</span></td></tr>
+        <tr><td>urlopen() always specifies timeout</td><td>V-222563</td><td>SC-8</td><td><span class="status ship">PASS</span></td></tr>
+        <tr><td>Audit-logger module present</td><td>V-222423..428</td><td>AU-2</td><td><span class="status ship">PASS</span></td></tr>
+        <tr><td>Audit logger imported at recv() call sites</td><td>V-222423..428</td><td>AU-3</td><td><span class="status ship">PASS</span></td></tr>
+        <tr><td>SECURITY.md documents missing socket auth</td><td>V-222396</td><td>IA-2</td><td><span class="status ship">PASS</span></td></tr>
+        <tr><td>recv() call sites bounded by MAX_MESSAGE_SIZE</td><td>V-222608</td><td>SI-10</td><td><span class="status ship">PASS</span></td></tr>
+        <tr><td>gitleaks evidence pinned</td><td>V-222575</td><td>IA-5</td><td><span class="status ship">PASS</span></td></tr>
+        <tr><td>Per-finding regression suite (19 tests)</td><td>multiple</td><td>multiple</td><td><span class="status ship">PASS</span></td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:14px;"><code>tests/ — 31 passed, 1 skipped (Dockerfile absent)</code></p>
+  </section>
+
+  <!-- Reasoning trace -->
+  <section>
+    <h2>Why these items shipped (and these didn't)</h2>
+    <div class="two">
+      <div>
+        <h3>Shipped in PR #9 (quick-wins)</h3>
+        <ul class="clean">
+          <li><b>F-006</b> — single line edit, no behavioural change to game logic, strictly tightens entropy of protocol nonces. Always in-scope.</li>
+          <li><b>F-007, F-008, F-009</b> — narrow timeouts and exception handlers, instrumented with audit logger. Low risk of regression and high signal on future incidents.</li>
+          <li><b>F-010</b> — explicit imports clarify attack surface and don't change runtime.</li>
+          <li><b>F-011</b> — adding a 1 MiB size cap is purely additive: it caps a known-unbounded ingress, never relaxes one.</li>
+          <li><b>F-012, F-016</b> — net-new files (<code>requirements.txt</code>, <code>SECURITY.md</code>): zero regression risk.</li>
+          <li><b>F-013</b> — net-new audit-logging module; existing code paths are wired into it, but the module gracefully degrades to stdlib <code>logging</code> if absent.</li>
+          <li><b>F-017</b> — latent crash bug; the codebase was unimportable on Python 3.10+ before this PR.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Deferred to Jira sub-tasks under UF-249</h3>
+        <ul class="clean">
+          <li><b>F-001..F-004</b> — replacing Dill is a wire-protocol redesign across server + client + legacy UI + RemoteAgent. Requires a schema (e.g. pydantic), per-message-type dispatch, version negotiation, and a compatibility shim. Not safe as a quick-win.</li>
+          <li><b>F-005</b> — TLS + mutual auth on port 5050 touches the accept loop, the connect path, certificate provisioning, and an isolated-LAN deployment story. Coupled to the architectural F-001..F-004 work and deferred together.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Links -->
+  <section>
+    <h2>Artifacts</h2>
+    <div class="links">
+      <div class="link-card">
+        <div class="small">Pull request</div>
+        <a href="https://github.com/COG-GTM/USArmy-ARL_Battlespace/pull/9">COG-GTM/USArmy-ARL_Battlespace #9</a>
+      </div>
+      <div class="link-card">
+        <div class="small">Jira Epic (single consolidated view)</div>
+        <a href="https://cog-gtm.atlassian.net/browse/UF-249">UF-249</a>
+      </div>
+      <div class="link-card">
+        <div class="small">Devin session</div>
+        <a href="https://app.devin.ai/sessions/ddb0e9214b1f46a8968ee245a7626510">ddb0e921…</a>
+      </div>
+      <div class="link-card">
+        <div class="small">Reports (in repo)</div>
+        <a href="../security-audit/SECURITY_AUDIT_REPORT.md">SECURITY_AUDIT_REPORT.md</a> · <a href="../security-audit/TRIAGE_REPORT.md">TRIAGE_REPORT.md</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="brand-foot">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M16 2 L29 9 L29 23 L16 30 L3 23 L3 9 Z" stroke="#0a0a0f" stroke-width="2"/>
+        <path d="M16 9 L23 13 L23 21 L16 25 L9 21 L9 13 Z" fill="#0a0a0f"/>
+      </svg>
+      <span>Cognition AI — federal security audit, 2026-05-12</span>
+    </div>
+    <div>Co-branded for US Army ARL · Cognition AI Platform</div>
+  </footer>
+
+</div>
+</body>
+</html>

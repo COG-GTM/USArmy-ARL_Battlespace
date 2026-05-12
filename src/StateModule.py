@@ -5,7 +5,8 @@ Created on Wed Oct  7 21:06:28 2020
 @author: berend
 """
 
-from collections import defaultdict, Set
+from collections import defaultdict
+from collections.abc import Set  # F-014 quick-win: collections.Set removed in Python 3.10
 
 class StateClass(object):
     """

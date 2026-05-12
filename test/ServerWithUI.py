@@ -8,8 +8,21 @@ import sys, os
 sys.path.append(os.path.realpath('..'))
 
 import socket
-from _thread import *
+from _thread import start_new_thread  # F-010: narrowed from wildcard `from _thread import *`
 import dill as pickle
+from src.security_audit_logging import (  # noqa: E402  pylint: disable=wrong-import-position
+    MAX_MESSAGE_SIZE,
+    UnpickleError,
+    get_security_logger,
+    safe_unpickle,
+)
+_audit_log = get_security_logger('arl_battlespace.security.ServerWithUI')
+
+# SECURITY: This module accepts dill (pickle-superset) payloads from
+# remote clients over plaintext TCP. Any peer who can reach port 5050
+# can deliver an RCE payload. See SECURITY.md and
+# docs/security-audit/SECURITY_AUDIT_REPORT.md (F-001) for the threat
+# model and the deferred architectural fix.
 
 import src
 from src.StateTypes.TeamState import TeamStateClass
@@ -174,7 +187,7 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
             for sock in readable:
                 if sock is conn:
                     print('now in ServerWithUI, initPositions, line 177  receiving data')   # size of data received is about 10-12 bytes
-                    data = conn.recv(2048).decode('utf-8')
+                    data = conn.recv(min(2048, MAX_MESSAGE_SIZE)).decode('utf-8')
                     print('size of data received is: ', len(data))
                     print('[Received] '+data)
                     x = {"contents":"TeamID","data":TeamID}
@@ -182,7 +195,9 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
                     conn.send(pickle.dumps(x))
                     init = False
                     break
-        except:
+        except (socket.error, OSError, BlockingIOError, ValueError) as exc:
+            # F-008/F-009 fix (CWE-755, NIST SI-11): narrowed from bare except, with audit log.
+            _audit_log.debug('initPositions inner: %s: %s', type(exc).__name__, exc)
             continue
 
     init = True
@@ -192,11 +207,17 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
             for sock in readable:
                 if sock is conn:
                     print('now in ServerWithUI, initPositions, line 196  receiving data')
-                    data = conn.recv(1024)
+                    data = conn.recv(min(1024, MAX_MESSAGE_SIZE))
                     print('size of data received is: ', len(data))   # length of data received is about 18 bytes
                     # Check if a message was received from the Client
                     if data:
-                        data = pickle.loads(data)
+                        # F-001/F-011: size-cap + audit-logged unpickle.
+                        try:
+                            data = safe_unpickle(data, source='ServerWithUI.initPositions:199')
+                        except (UnpickleError, Exception) as exc:  # noqa: BLE001
+                            _audit_log.warning('initPositions: rejecting payload: %s', exc)
+                            init = False
+                            break
                         print(data)
                         UnitID = list(data.keys())[0]
                         Position = data[UnitID]
@@ -240,7 +261,10 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
             else:
                 continue  # only executed if the inner loop did NOT break
             break
-        except:
+        except (socket.error, OSError, BlockingIOError, ValueError, TypeError) as exc:
+            # F-008 fix: narrowed except. Loop still exits when ready_players
+            # equals number_of_players; otherwise we log and try again.
+            _audit_log.debug('initPositions outer: %s: %s', type(exc).__name__, exc)
             if ReadyPlayers == NumberOfPlayers:
                 break
 
@@ -423,7 +447,14 @@ elif GameType == '--test':
     print('This version of GUI is meant for reliable server and client communication through an external network.')
 
     import urllib.request
-    external_ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')
+    # F-007 fix (CWE-400, NIST SC-5): bounded timeout + audited fallback for the
+    # external-IP discovery call. The external IP lookup is not security-critical
+    # for the wargame; failure should not block server startup.
+    try:
+        external_ip = urllib.request.urlopen('https://ident.me', timeout=10).read().decode('utf8')
+    except (OSError, ValueError) as exc:
+        _audit_log.warning('ident.me lookup failed: %s -- continuing without external IP', exc)
+        external_ip = '<unavailable>'
     print('Your router\'s external IP address is: ',external_ip)
     print('and your server\'s local IP address is: ',getIp())
     print('Please configure your router\'s Port Forwarding so that port 5050 is forwarded to ',getIp())
@@ -448,11 +479,20 @@ elif GameType == '--test':
             for sock in readable:
                 if sock is s:
                     conn, addr = s.accept()
+                    _audit_log.info('accept: from=%s player_id=%s', addr, idCount)
                     print("Connected to:", addr)
                     print(conn)
                     print('raddr is: ',addr[0],' port ',addr[1])
                     
                     conn.setblocking(1)
+                    # F-005 (HIGH, deferred architectural): TCP is plaintext + no auth.
+                    # SECURITY.md mandates this codebase runs on an isolated LAN; the
+                    # quick-win here is to set a recv timeout so a stuck peer cannot
+                    # tie up the server indefinitely.
+                    try:
+                        conn.settimeout(60.0)
+                    except (socket.error, OSError) as exc:
+                        _audit_log.debug('settimeout(60) on conn failed: %s', exc)
                     PlayerID = idCount
                     aPositions[PlayerID] = {}
                     for mod in modules:
@@ -482,7 +522,9 @@ elif GameType == '--test':
                     start_new_thread(initPositions, (conn, PlayerID, TeamID,QTable["FlagPositions"]))
                     if idCount == NumberOfPlayers:
                         init = False
-        except:
+        except (socket.error, OSError, BlockingIOError, ValueError, KeyError) as exc:
+            # F-008/F-009 fix (CWE-755, NIST SI-11): narrowed bare except with audit log.
+            _audit_log.debug('accept-loop: %s: %s', type(exc).__name__, exc)
             if idCount == NumberOfPlayers:
                 init = False
             else:

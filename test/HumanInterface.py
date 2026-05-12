@@ -11,8 +11,21 @@ import os
 import socket
 import pickle
 from src.StateTypes.TeamState import TeamStateClass
-from _thread import *
+from _thread import start_new_thread  # F-010: narrowed from wildcard `from _thread import *`
 import dill as pickle
+from src.security_audit_logging import (  # noqa: E402  pylint: disable=wrong-import-position
+    MAX_MESSAGE_SIZE,
+    UnpickleError,
+    get_security_logger,
+    safe_unpickle,
+)
+_audit_log = get_security_logger('arl_battlespace.security.HumanInterface')
+
+# SECURITY: This module accepts dill (pickle-superset) payloads from the
+# server over plaintext TCP. A malicious or hijacked server can deliver
+# an RCE payload to the operator workstation. See SECURITY.md and
+# docs/security-audit/SECURITY_AUDIT_REPORT.md (F-002) for the threat
+# model and the deferred architectural fix.
 import select
 from copy import deepcopy
 import tkinter as tk
@@ -167,9 +180,12 @@ def timer_fn(verbose = False):
                     if verbose: print('data is type ',type(data), 'of length ',len(data))
                     pickleLoadSuccessful = False
                     try:
-                        data = pickle.loads(data)
+                        # F-002/F-011 fix: size-cap + audit-logged unpickle.
+                        data = safe_unpickle(data, source='HumanInterface.timer_fn:170')
                         pickleLoadSuccessful = True
-                    except:
+                    except (UnpickleError, Exception) as exc:  # noqa: BLE001
+                        # F-008 fix: log instead of silently swallowing.
+                        _audit_log.warning('timer_fn: rejecting payload: %s', exc)
                         print('HumanInterface.py line 156:  Failed to unpickle data at time ',int(round(time.time() * 1000)))
                         print('Ignoring this bad packet.')
                     if pickleLoadSuccessful == True:                   
@@ -277,7 +293,12 @@ def newgame():
     
     textIn = input('Please provide the IP address of the server, e.g. 71.114.47.132, or press Enter if server and client are on the same machine or router: ')
     if textIn == '':
-        external_ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')
+        # F-007 fix (CWE-400, NIST SC-5): bounded timeout + audited fallback.
+        try:
+            external_ip = urllib.request.urlopen('https://ident.me', timeout=10).read().decode('utf8')
+        except (OSError, ValueError) as exc:
+            _audit_log.warning('ident.me lookup failed: %s -- falling back to 127.0.0.1', exc)
+            external_ip = '127.0.0.1'
         textIn = external_ip
         print('assigning server to same as client, ',external_ip)
     else:
@@ -291,9 +312,14 @@ def newgame():
             readable, writable, errored = select.select([client], [], [],0)
             for sock in readable:
                 if sock is client:
-                    data = client.recv(4096)
+                    data = client.recv(min(4096, MAX_MESSAGE_SIZE))
                     if data:
-                        data = pickle.loads(data)
+                        # F-002/F-011 fix: size-cap + audit-logged unpickle.
+                        try:
+                            data = safe_unpickle(data, source='HumanInterface.connect:296')
+                        except (UnpickleError, Exception) as exc:  # noqa: BLE001
+                            _audit_log.warning('connect: rejecting payload: %s', exc)
+                            continue
                         #print(data)
                         if data["contents"] == "PlayerID":
                             PlayerID = data["data"]

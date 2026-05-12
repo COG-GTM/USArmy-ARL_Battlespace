@@ -11,8 +11,27 @@ sys.path.append(r'C:\Users\wpere\Documents\Army\July\dfvc2-Development\src\Games
 sys.path.append(r'C:\Users\wpere\Documents\Army\July\dfvc2-Development\src\StateTypes')
 sys.path.append(r'C:\Users\wpere\Documents\Army\July\dfvc2-Development\src\UnitTypes')
 import socket
-from _thread import *
+from _thread import start_new_thread  # F-010: narrowed from wildcard
 import dill as pickle
+try:
+    from src.security_audit_logging import (  # type: ignore[import-not-found]
+        MAX_MESSAGE_SIZE,
+        UnpickleError,
+        get_security_logger,
+        safe_unpickle,
+    )
+except ImportError:  # pragma: no cover - dev-only path
+    import logging
+    MAX_MESSAGE_SIZE = 1 << 20  # type: ignore[assignment]
+    class UnpickleError(ValueError):  # type: ignore[no-redef]
+        pass
+    def get_security_logger(name='arl_battlespace.security'):  # type: ignore[no-redef]
+        return logging.getLogger(name)
+    def safe_unpickle(data, *, source='unknown'):  # type: ignore[no-redef]
+        if len(data) > MAX_MESSAGE_SIZE:
+            raise UnpickleError(f'payload from {source} > {MAX_MESSAGE_SIZE}')
+        return pickle.loads(data)
+_audit_log = get_security_logger('arl_battlespace.security.Fully_Visible_UI.WalterServer')
 from TeamState import TeamStateClass
 from TeamCaptureFlagGame import TeamCaptureFlagClass
 from TeamAgents import TeamHumanAgentClass, TeamStaticRandomAgentClass, TeamUniformRandomAgentClass
@@ -157,7 +176,9 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
                     conn.send(pickle.dumps(x))
                     init = False
                     break
-        except:
+        except (socket.error, OSError, BlockingIOError, ValueError) as exc:
+            # F-008 fix: narrowed from bare except, with audit log.
+            _audit_log.debug('TeamID-loop: %s: %s', type(exc).__name__, exc)
             continue
 
     init = True
@@ -166,7 +187,7 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
             readable, writable, errored = select.select([conn], [], [],0)
             for sock in readable:
                 if sock is conn:
-                    data = conn.recv(2048).decode('utf-8')
+                    data = conn.recv(min(2048, MAX_MESSAGE_SIZE)).decode('utf-8')
                     print('[Received] '+data)
                     AgentDict["contents"] = "AgentDict"
                     msg = pickle.dumps(AgentDict)
@@ -174,7 +195,9 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
                     #conn.send(msg)
                     init = False
                     break
-        except:
+        except (socket.error, OSError, BlockingIOError, ValueError) as exc:
+            # F-008 fix: narrowed from bare except, with audit log.
+            _audit_log.debug('AgentDict-loop: %s: %s', type(exc).__name__, exc)
             continue
 
     init = True
@@ -183,10 +206,14 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
             readable, writable, errored = select.select([conn], [], [],0)
             for sock in readable:
                 if sock is conn:
-                    data = conn.recv(1024)
+                    data = conn.recv(min(1024, MAX_MESSAGE_SIZE))
                     # Check if a message was received from the Client
                     if data:
-                        data = pickle.loads(data)
+                        try:
+                            data = safe_unpickle(data, source='WalterServer.initPositions:189')
+                        except (UnpickleError, Exception) as exc:  # noqa: BLE001
+                            _audit_log.warning('initPositions: rejecting payload: %s', exc)
+                            continue
                         print(data)
                         UnitID = list(data.keys())[0]
                         Position = data[UnitID]
@@ -230,7 +257,9 @@ def initPositions(conn, PlayerID, TeamID, FlagPositions):
             else:
                 continue  # only executed if the inner loop did NOT break
             break
-        except:
+        except (socket.error, OSError, BlockingIOError, ValueError, KeyError, TypeError) as exc:
+            # F-008 fix: narrowed from bare except, with audit log.
+            _audit_log.debug('initPositions: %s: %s', type(exc).__name__, exc)
             if ReadyPlayers == NumberOfPlayers:
                 break
 
@@ -438,7 +467,9 @@ elif GameType == '--test':
                     start_new_thread(initPositions, (conn, PlayerID, TeamID,QTable["FlagPositions"]))
                     if idCount == NumberOfPlayers:
                         init = False
-        except:
+        except (socket.error, OSError, BlockingIOError, ValueError, KeyError) as exc:
+            # F-008/F-009 fix: narrowed bare except with audit log.
+            _audit_log.debug('accept-loop: %s: %s', type(exc).__name__, exc)
             if idCount == NumberOfPlayers:
                 init = False
             else:
