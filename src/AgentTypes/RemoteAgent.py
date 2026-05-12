@@ -3,12 +3,24 @@ from src.AgentModule import AgentClass
 from src.AgentTypes.HumanAgent import HumanAgentClass
 from src.AgentTypes.TeamAgents import TeamHumanAgentClass
 import itertools
+import os
 import socket
-from _thread import *
+from _thread import start_new_thread  # F-010: narrowed from wildcard `from _thread import *`
 import dill as pickle
 import errno
 import select
 from reliableSockets import sendReliablyBinary, recvReliablyBinary2, emptySocket
+from src.security_audit_logging import (
+    MAX_MESSAGE_SIZE,
+    UnpickleError,
+    get_security_logger,
+    safe_unpickle,
+)
+_audit_log = get_security_logger('arl_battlespace.security.RemoteAgent')
+
+# SECURITY: This module receives dill (pickle-superset) payloads from a
+# remote client. RCE risk surface; see SECURITY.md and
+# docs/security-audit/SECURITY_AUDIT_REPORT.md F-003.
 
 
 def nth(iterable, n, default=None):
@@ -80,19 +92,22 @@ class RemoteTeamAgentClass(AgentClass):
         while True:
             try:
                 print('now in RemoteAgent.py, requestActions, line 81  receiving AgentAction')
-                data = conn.recv(1024)  # this line does not complete until all actions are selected for this player and the data is sent/received
+                data = conn.recv(min(1024, MAX_MESSAGE_SIZE))  # bounded by MAX_MESSAGE_SIZE
                 print('size of data received is: ', len(data))   # data size is about 127 bytes
                 if data:
-                    AgentAction = pickle.loads(data)
+                    # F-003/F-011 fix: size-cap + audit-logged unpickle.
+                    try:
+                        AgentAction = safe_unpickle(data, source='RemoteAgent.requestActions:86')
+                    except (UnpickleError, Exception) as exc:  # noqa: BLE001
+                        _audit_log.warning('requestActions: rejecting payload: %s', exc)
+                        continue
                     print(AgentAction)
                     break
             except socket.error as error:
                 if error.errno == errno.ECONNREFUSED:
-                    print(os.strerror(error.errno))
-                    board.close()
-                    client.close()
+                    _audit_log.warning('requestActions: ECONNREFUSED %s', os.strerror(error.errno))
                 else:
-                    print(error)
+                    _audit_log.error('requestActions: socket error %s', error)
 
         self.Went = 1
         self.Actions = AgentAction

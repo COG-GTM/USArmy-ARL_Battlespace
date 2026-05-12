@@ -12,8 +12,27 @@ import os
 import socket
 import pickle
 from TeamState import TeamStateClass
-from _thread import *
+from _thread import start_new_thread  # F-010: narrowed from wildcard
 import dill as pickle
+try:
+    from src.security_audit_logging import (  # type: ignore[import-not-found]
+        MAX_MESSAGE_SIZE,
+        UnpickleError,
+        get_security_logger,
+        safe_unpickle,
+    )
+except ImportError:  # pragma: no cover - dev-only path
+    import logging
+    MAX_MESSAGE_SIZE = 1 << 20  # type: ignore[assignment]
+    class UnpickleError(ValueError):  # type: ignore[no-redef]
+        pass
+    def get_security_logger(name='arl_battlespace.security'):  # type: ignore[no-redef]
+        return logging.getLogger(name)
+    def safe_unpickle(data, *, source='unknown'):  # type: ignore[no-redef]
+        if len(data) > MAX_MESSAGE_SIZE:
+            raise UnpickleError(f'payload from {source} > {MAX_MESSAGE_SIZE}')
+        return pickle.loads(data)
+_audit_log = get_security_logger('arl_battlespace.security.Fully_Visible_UI.interface')
 import select
 from copy import deepcopy
 import tkinter as tk
@@ -93,9 +112,13 @@ def timer_fn():
         inputready, outputready, exceptready = select.select([client], [], [],0)
         for sock in inputready:
             if client == sock:
-                data = client.recv(4096)
+                data = client.recv(min(4096, MAX_MESSAGE_SIZE))
                 if data:
-                    data = pickle.loads(data)
+                    try:
+                        data = safe_unpickle(data, source='interface.timer_fn:98')
+                    except (UnpickleError, Exception) as exc:  # noqa: BLE001
+                        _audit_log.warning('timer_fn: rejecting payload: %s', exc)
+                        return
                     contents = data["contents"]
                     if data["contents"] == "RemoteAgent":
                         newPosition = data["newPos"]
@@ -198,9 +221,13 @@ def newgame():
             readable, writable, errored = select.select([client], [], [],0)
             for sock in readable:
                 if sock is client:
-                    data = client.recv(4096)
+                    data = client.recv(min(4096, MAX_MESSAGE_SIZE))
                     if data:
-                        data = pickle.loads(data)
+                        try:
+                            data = safe_unpickle(data, source='interface.newgame:203')
+                        except (UnpickleError, Exception) as exc:  # noqa: BLE001
+                            _audit_log.warning('newgame: rejecting payload: %s', exc)
+                            continue
                         #print(data)
                         if data["contents"] == "PlayerID":
                             PlayerID = data["data"]
@@ -220,7 +247,9 @@ def newgame():
                                     board[9-newPosition[1]][newPosition[0]] = (newOrientation,Ledger["Agents"][AgentID]["Units"][data[AgentID][Unit]["UnitID"]]["ImagePath"])
                                     Ledger["Agents"][AgentID]["Units"][data[AgentID][Unit]["UnitID"]]["Position"] = newPosition
                             setup = False
-        except:
+        except (socket.error, OSError, BlockingIOError, ValueError, KeyError) as exc:
+            # F-008 fix: narrowed from bare except, with audit log.
+            _audit_log.debug('newgame: %s: %s', type(exc).__name__, exc)
             continue
 
     #time.sleep(1.0)

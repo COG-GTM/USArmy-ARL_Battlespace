@@ -10,6 +10,18 @@ import struct
 import numpy as np
 import time
 import socket
+import secrets
+import sys
+import os
+
+_here = os.path.dirname(os.path.realpath(__file__))
+if os.path.realpath(os.path.join(_here, '..')) not in sys.path:
+    sys.path.append(os.path.realpath(os.path.join(_here, '..')))
+from src.security_audit_logging import (  # noqa: E402  pylint: disable=wrong-import-position
+    MAX_MESSAGE_SIZE,
+    get_security_logger,
+)
+_audit_log = get_security_logger('arl_battlespace.security.reliableSockets')
 global GameOver
 
 
@@ -53,7 +65,10 @@ def sendReliablyBinary(msg, conn, verbose = False):
     if verbose: print('lastPacketSize should be ',lastPacketSize)
         
     initialPacketRecvd = False
-    SYN = random.randrange(1000000,1000000000)
+    # F-006 fix (CWE-330, NIST SC-12): SYN is a protocol nonce that the peer
+    # cross-validates on the handshake; an attacker who can predict SYN can
+    # forge a handshake. Use a CSPRNG instead of `random.randrange`.
+    SYN = secrets.randbelow(1_000_000_000 - 1_000_000) + 1_000_000
 
     while (initialPacketRecvd == False): # THIS IS THE LOOP FOR SENDING an initial SYN PACKET
         # send initial packet for SYN
@@ -278,7 +293,8 @@ def recvReliablyBinary2(conn, data, verbose = False):
     head1 = toEightBytes(numPacketsToSend)
     if verbose: print('reliableSockets.py recvReliablyBinary2  line 258:  lastPacketSize = ',lastPacketSize)
     head2 = toEightBytes(lastPacketSize)
-    SeqNum = random.randrange(3000000000,4000000000)
+    # F-006 fix (CWE-330, NIST SC-12): see SYN comment above.
+    SeqNum = secrets.randbelow(4_000_000_000 - 3_000_000_000) + 3_000_000_000
     head3 = toEightBytes(SeqNum)
     head4 = toEightBytes(SYN + 1)   
     head5 = toEightBytes(314159)
@@ -485,7 +501,9 @@ def emptySocket(conn, verbose = False):
             for sock in readable:
                 if sock is conn:
                     junk = conn.recv(1024)
-        except:
+        except (socket.error, OSError, BlockingIOError, ValueError) as exc:
+            # F-008 fix (CWE-755, NIST SI-11): narrowed from bare except, with audit log.
+            _audit_log.debug('emptySocket: stopped on %s: %s', type(exc).__name__, exc)
             break
     if verbose: print('socket emptied')                
                     

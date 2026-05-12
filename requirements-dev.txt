@@ -1,0 +1,16 @@
+# Development & audit dependencies for USArmy-ARL_Battlespace.
+#
+# Install with:
+#   pip install -r requirements-dev.txt
+#
+# These tools are exercised by tests/test_compliance.py to enforce the
+# DISA STIG / NIST 800-53 r5 control set against the codebase.
+
+-r requirements.txt
+
+bandit>=1.7
+semgrep>=1.50
+pip-audit>=2.7
+pylint>=3.0
+ruff>=0.6
+pytest>=8.0

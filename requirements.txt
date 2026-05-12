@@ -1,0 +1,26 @@
+# Runtime dependencies for USArmy-ARL_Battlespace
+#
+# Versions are minimum-safe floors as of the 2026-05-12 federal security
+# audit (DISA STIG V5R3 + NIST 800-53 r5). They are intentionally floors,
+# not exact pins, so that downstream installers can pick up security
+# patches without breaking the API contract.
+#
+# When you upgrade a dependency below, re-run:
+#   pip-audit -r requirements.txt --strict
+# and update the floor here.
+
+# Wire protocol serialization (Pickle superset, supports lambdas).
+# NOTE: dill.loads() on attacker-controlled input is a DOCUMENTED RCE risk
+# (see SECURITY.md and docs/security-audit/SECURITY_AUDIT_REPORT.md F-001..F-004).
+# Replacing dill with a schema-validated wire protocol is the architectural
+# fix and is tracked as a deferred Jira sub-task.
+dill>=0.3.8
+
+# Numpy is used for the protocol-header byte arithmetic in reliableSockets
+# and for board state in the game. 1.22 is the floor for CVE-2021-41496.
+numpy>=1.22
+
+# Tkinter ships with the Python stdlib on most platforms; the `tk` PyPI
+# package is a no-op shim required only by some conda installations.
+# Pinned to a recent version so the supply chain is reproducible.
+tk>=0.1.0
