@@ -19,7 +19,11 @@ from src.UnitTypes.TruckModule import TruckClass
 from src.UnitTypes.AirplaneModule import AirplaneClass
 from src.AgentTypes.RemoteAgent import RemoteTeamAgentClass
 import dill as pickle
-from reliableSockets import sendReliablyBinary
+# Optional: only needed for networked human-client play (see RemoteAgent).
+try:
+    from reliableSockets import sendReliablyBinary
+except ImportError:
+    sendReliablyBinary = None
 
 
 def first(D):

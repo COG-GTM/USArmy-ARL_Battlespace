@@ -68,6 +68,73 @@ If terminal 2 is on the same machine as terminal 1:<BR>
 11) AIs plan their actions. All Player and AI actions are executed simultaneously and first round ends. Play continues. Game ends when both enemy flags are captured, or all enemy ground units are destroyed.
 
 
+# Headless AI tooling: simulation harness, RL agent, and decision aids
+
+In addition to the human-vs-AI server above, the repository provides a UI-free
+toolchain for developing and evaluating command-and-control decision aids. None
+of these require Tk or sockets, so they run in CI and in automated experiments.
+
+Setup (Python 3.7-3.9 recommended; `collections.Set` was removed in 3.10+):
+
+```
+python -m venv .venv && source .venv/bin/activate
+pip install dill numpy scipy
+```
+
+## 1) Simulation harness (`src/Harness/Simulator.py`)
+
+A deterministic, seeded AI-vs-AI runner. It reconstructs the standard
+capture-the-flag start state (3 ground + 1 air unit + a flag per player, with a
+central minefield/gap) without any UI, builds the game, and calls `Game.play`
+directly.
+
+```
+# Baseline: UniformRandomAgent vs UniformRandomAgent over 200 seeded games
+python -m src.Harness.Simulator --games 200 --seed 0
+```
+
+Programmatic API: `run_match(agentFactoryA, agentFactoryB, seed)` returns the
+winning team (or `None` for a draw); `evaluate(...)` aggregates win/draw rates
+over N seeded matches.
+
+## 2) RL agent + training + evaluation (UC1)
+
+`TeamTDAgentClass` (`src/AgentTypes/RLAgent.py`) is a tabular Q-learning agent
+that reuses the nested Q-table schema (`land`/`air` -> position -> orientation ->
+action -> value). It selects actions epsilon-greedily over each unit's legal
+actions and learns from terminal outcomes plus action-shaping rewards.
+
+```
+# Self-play training; persists the learned table to src/Training/policy.json
+python -m src.Training.train_rl --episodes 600 --opponent self --seed 0
+
+# Evaluate the trained policy vs UniformRandomAgent over >=200 seeded games
+python -m src.Training.eval_rl --games 200 --seed 1000
+```
+
+For human-on-the-loop use, `TeamTDAgentClass.recommendActions(ObservedState,
+State, topk=3)` returns ranked courses of action (action + Q-value + label) per
+unit instead of auto-acting.
+
+## 3) Threat prioritization + weapon-to-target assignment aid (UC2)
+
+`src/DecisionAid/ThreatModel.py` scores each *visible* enemy by proximity to the
+friendly flag, unit-type weight, and a combat-model probability-of-kill estimate.
+`src/DecisionAid/Assignment.py` builds a friendly x enemy utility matrix and
+solves the optimal one-to-one weapon-to-target assignment (Hungarian via SciPy,
+with a documented greedy fallback).
+
+```
+# Demo on a deterministic mid-game contact scenario (ranked threats + pairings)
+python -m src.DecisionAid.demo
+
+# Unit tests for threat ordering, Pk monotonicity, and assignment validity
+python -m unittest test.test_decision_aid -v
+```
+
+`TeamDecisionAidAgentClass` (`src/AgentTypes/DecisionAidAgent.py`) is an optional
+wrapper that plays through the harness using these aids to choose engagements.
+
 CITATIONS:  
 
 1.    Hare JZ, Rinderspacher BC, Kase S, Su S & Hung CP (2021) Battlespace: using AI to understand friendly vs. hostile decision dynamics in MDO. Proc. SPIE 11746, Artificial Intelligence and Machine Learning for Multi-Domain Operations Applications III. 1174615 (12 April 2021); https://doi.org/10.1117/12.2585785.
