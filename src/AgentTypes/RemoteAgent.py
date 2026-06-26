@@ -8,7 +8,14 @@ from _thread import *
 import dill as pickle
 import errno
 import select
-from reliableSockets import sendReliablyBinary, recvReliablyBinary2, emptySocket
+# reliableSockets lives in the `test` package and is only required for
+# networked (human-client) play. Import it optionally so this module can be
+# imported in headless contexts (the simulation harness, RL training, CI),
+# where remote play is never exercised.
+try:
+    from reliableSockets import sendReliablyBinary, recvReliablyBinary2, emptySocket
+except ImportError:
+    sendReliablyBinary = recvReliablyBinary2 = emptySocket = None
 
 
 def nth(iterable, n, default=None):
