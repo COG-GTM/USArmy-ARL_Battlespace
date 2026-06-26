@@ -16,8 +16,8 @@ Usage
 import argparse
 import os
 
-from src.Harness.Simulator import (evaluate, format_winrate_table, default_random_factory,
-                                    BOARD_SIZE, TEAM_B_ID)
+from src.Harness.Simulator import (evaluate, format_winrate_table,
+                                    default_random_factory)
 from src.AgentTypes.RLAgent import TeamTDAgentClass, load_policy
 
 DEFAULT_POLICY_PATH = os.path.join(os.path.dirname(__file__), "policy.json")

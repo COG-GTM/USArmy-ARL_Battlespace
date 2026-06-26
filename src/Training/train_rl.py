@@ -21,7 +21,7 @@ import argparse
 import os
 import time
 
-from src.Harness.Simulator import (run_match, build_start_state, TEAM_A_ID, TEAM_B_ID,
+from src.Harness.Simulator import (run_match, TEAM_A_ID, TEAM_B_ID,
                                     BOARD_SIZE, default_random_factory)
 from src.AgentTypes.RLAgent import (TeamTDAgentClass, build_qtable, save_policy,
                                     WIN_REWARD, LOSS_REWARD, DRAW_REWARD)

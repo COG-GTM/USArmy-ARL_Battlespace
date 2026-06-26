@@ -116,7 +116,7 @@ def run_demo():
         print(f"   (from trained policy: {policy_path})")
         for unit_id, options in coas.items():
             print(f"  Unit #{unit_id}:")
-            for action, q, label in options:
+            for _action, _q, label in options:
                 print(f"      - {label}")
     else:
         print_section("3) RL agent COA recommendations")
